@@ -2,10 +2,11 @@ export default function HealthBar({ health, color }) {
   return (
     <div
       style={{
-        width: 200,
+        width: "100%",
         background: "#444",
-        margin: 10,
         border: "1px solid #666",
+        borderRadius: 8,
+        overflow: "hidden",
       }}
     >
       <div

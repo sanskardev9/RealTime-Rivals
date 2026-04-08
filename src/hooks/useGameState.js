@@ -4,6 +4,8 @@ import {
   ATTACK_DURATION,
   createPlayer,
   endAttack,
+  flipDirection,
+  mirrorPlayerX,
   movePlayer,
   startAttack,
 } from "../game/player";
@@ -45,14 +47,7 @@ export const useGameState = () => {
       }
 
       setPlayer((currentPlayer) => {
-        const attackingPlayer = startAttack(currentPlayer);
-
-        // Apply damage
-        setOpponent((currentOpponent) =>
-          applyAttackDamage(attackingPlayer, currentOpponent)
-        );
-
-        return attackingPlayer;
+        return startAttack(currentPlayer);
       });
 
       // End attack after duration
@@ -67,10 +62,30 @@ export const useGameState = () => {
     setPlayer((currentPlayer) => movePlayer(currentPlayer, input));
   };
 
+  const syncOpponent = (remotePlayer) => {
+    setOpponent((currentOpponent) => {
+      const normalizedRemotePlayer = {
+        ...remotePlayer,
+        x: mirrorPlayerX(remotePlayer.x),
+        direction: flipDirection(remotePlayer.direction),
+      };
+      const isNewAttack =
+        normalizedRemotePlayer.isAttacking && !currentOpponent.isAttacking;
+
+      if (isNewAttack) {
+        setPlayer((currentPlayer) =>
+          applyAttackDamage(normalizedRemotePlayer, currentPlayer)
+        );
+      }
+
+      return normalizedRemotePlayer;
+    });
+  };
+
   return {
     player,
     opponent,
-    setOpponent,
+    syncOpponent,
     updatePlayer,
     gameStatus,
   };

@@ -45,4 +45,9 @@ export const endAttack = (currentPlayer) => ({
 
 export const clampHealth = (health) => Math.max(0, Math.min(100, health));
 
-export { ATTACK_DURATION, PLAYER_WIDTH };
+export const mirrorPlayerX = (x) => ARENA_WIDTH - PLAYER_WIDTH - x;
+
+export const flipDirection = (direction) =>
+  direction === "left" ? "right" : "left";
+
+export { ARENA_WIDTH, ATTACK_DURATION, PLAYER_WIDTH };

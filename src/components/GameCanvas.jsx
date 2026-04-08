@@ -9,11 +9,16 @@ export default function GameCanvas() {
   const canvasRef = useRef(null);
   const playerRef = useRef(null);
   const opponentRef = useRef(null);
+  const touchControlsRef = useRef({
+    left: false,
+    right: false,
+  });
+  const touchMoveIntervalRef = useRef(null);
 
   const {
     player,
     opponent,
-    setOpponent,
+    syncOpponent,
     updatePlayer,
     gameStatus,
   } = useGameState();
@@ -28,8 +33,15 @@ export default function GameCanvas() {
   }, [opponent]);
 
   // WebRTC sync
-  const { sendData } = useWebRTC((data) => {
-    setOpponent(data);
+  const {
+    audioEnabled,
+    audioStatus,
+    audioSupported,
+    remoteAudioRef,
+    sendData,
+    toggleAudio,
+  } = useWebRTC((data) => {
+    syncOpponent(data);
   });
 
   // Send player state
@@ -44,6 +56,41 @@ export default function GameCanvas() {
 
     updatePlayer(input);
   });
+
+  useEffect(() => {
+    touchMoveIntervalRef.current = setInterval(() => {
+      if (gameStatus !== "playing" || !playerRef.current) return;
+
+      if (touchControlsRef.current.left) {
+        updatePlayer("left");
+      }
+
+      if (touchControlsRef.current.right) {
+        updatePlayer("right");
+      }
+    }, 55);
+
+    return () => {
+      clearInterval(touchMoveIntervalRef.current);
+    };
+  }, [gameStatus, updatePlayer]);
+
+  const setTouchMovement = (direction, isPressed) => {
+    touchControlsRef.current[direction] = isPressed;
+  };
+
+  const stopAllTouchMovement = () => {
+    touchControlsRef.current.left = false;
+    touchControlsRef.current.right = false;
+  };
+
+  const handleTouchAttack = () => {
+    if (gameStatus !== "playing") return;
+    updatePlayer("attack");
+  };
+
+  const controlButtonClass =
+    "select-none touch-none rounded-2xl border border-zinc-500 bg-zinc-800 px-5 py-4 text-base font-semibold text-white active:scale-95 active:bg-zinc-700";
 
   // Game loop
   useEffect(() => {
@@ -87,12 +134,23 @@ export default function GameCanvas() {
   }, [gameStatus]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white relative">
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center bg-black px-4 py-6 text-white">
       
       {/* HUD */}
-      <div className="w-[800px] flex justify-between mb-3">
+      <div className="mb-3 flex w-full max-w-[800px] gap-3">
         <HealthBar health={player.health} color="blue" />
         <HealthBar health={opponent.health} color="red" />
+      </div>
+
+      <div className="mb-3 flex w-full max-w-[800px] items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm">
+        <span>{audioStatus}</span>
+        <button
+          className="shrink-0 rounded-md border border-zinc-500 px-3 py-1 disabled:opacity-50"
+          disabled={!audioSupported}
+          onClick={toggleAudio}
+        >
+          {audioEnabled ? "Mute Mic" : "Unmute Mic"}
+        </button>
       </div>
 
       {/* Canvas */}
@@ -100,8 +158,36 @@ export default function GameCanvas() {
         ref={canvasRef}
         width={800}
         height={400}
-        className="bg-zinc-800 border border-zinc-700"
+        className="block aspect-[2/1] w-full max-w-[800px] rounded-xl border border-zinc-700 bg-zinc-800"
       />
+      <audio ref={remoteAudioRef} autoPlay playsInline />
+
+      <div className="mt-4 grid w-full max-w-[800px] grid-cols-3 gap-3 sm:hidden">
+        <button
+          className={controlButtonClass}
+          onPointerCancel={stopAllTouchMovement}
+          onPointerDown={() => setTouchMovement("left", true)}
+          onPointerLeave={() => setTouchMovement("left", false)}
+          onPointerUp={() => setTouchMovement("left", false)}
+        >
+          Left
+        </button>
+        <button
+          className={controlButtonClass}
+          onPointerDown={handleTouchAttack}
+        >
+          Attack
+        </button>
+        <button
+          className={controlButtonClass}
+          onPointerCancel={stopAllTouchMovement}
+          onPointerDown={() => setTouchMovement("right", true)}
+          onPointerLeave={() => setTouchMovement("right", false)}
+          onPointerUp={() => setTouchMovement("right", false)}
+        >
+          Right
+        </button>
+      </div>
 
       {/* Game Over Overlay */}
       {gameStatus !== "playing" && (
