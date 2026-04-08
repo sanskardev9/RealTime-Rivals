@@ -1,6 +1,7 @@
 const PLAYER_WIDTH = 50;
 const ARENA_WIDTH = 800;
 const MOVE_SPEED = 4;
+const INPUT_REPEAT_MS = 45;
 const ATTACK_DURATION = 200;
 
 export const createPlayer = ({
@@ -50,4 +51,4 @@ export const mirrorPlayerX = (x) => ARENA_WIDTH - PLAYER_WIDTH - x;
 export const flipDirection = (direction) =>
   direction === "left" ? "right" : "left";
 
-export { ARENA_WIDTH, ATTACK_DURATION, PLAYER_WIDTH };
+export { ARENA_WIDTH, ATTACK_DURATION, INPUT_REPEAT_MS, PLAYER_WIDTH };

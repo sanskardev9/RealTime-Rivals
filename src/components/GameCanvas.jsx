@@ -3,6 +3,7 @@ import { useGameState } from "../hooks/useGameState";
 import { useControls } from "../hooks/useControls";
 import { useWebRTC } from "../hooks/useWebRTC";
 import { getAttackBoxX } from "../game/collision";
+import { INPUT_REPEAT_MS } from "../game/player";
 import HealthBar from "./HealthBar";
 
 export default function GameCanvas() {
@@ -68,7 +69,7 @@ export default function GameCanvas() {
       if (touchControlsRef.current.right) {
         updatePlayer("right");
       }
-    }, 55);
+    }, INPUT_REPEAT_MS);
 
     return () => {
       clearInterval(touchMoveIntervalRef.current);
@@ -88,6 +89,25 @@ export default function GameCanvas() {
     if (gameStatus !== "playing") return;
     updatePlayer("attack");
   };
+
+  const bindMovementButton = (direction) => ({
+    onMouseDown: () => setTouchMovement(direction, true),
+    onMouseUp: () => setTouchMovement(direction, false),
+    onMouseLeave: () => setTouchMovement(direction, false),
+    onTouchStart: (event) => {
+      event.preventDefault();
+      setTouchMovement(direction, true);
+    },
+    onTouchEnd: (event) => {
+      event.preventDefault();
+      setTouchMovement(direction, false);
+    },
+    onTouchCancel: (event) => {
+      event.preventDefault();
+      setTouchMovement(direction, false);
+    },
+    onPointerCancel: stopAllTouchMovement,
+  });
 
   const controlButtonClass =
     "select-none touch-none rounded-2xl border border-zinc-500 bg-zinc-800 px-5 py-4 text-base font-semibold text-white active:scale-95 active:bg-zinc-700";
@@ -165,25 +185,23 @@ export default function GameCanvas() {
       <div className="mt-4 grid w-full max-w-[800px] grid-cols-3 gap-3 sm:hidden">
         <button
           className={controlButtonClass}
-          onPointerCancel={stopAllTouchMovement}
-          onPointerDown={() => setTouchMovement("left", true)}
-          onPointerLeave={() => setTouchMovement("left", false)}
-          onPointerUp={() => setTouchMovement("left", false)}
+          {...bindMovementButton("left")}
         >
           Left
         </button>
         <button
           className={controlButtonClass}
-          onPointerDown={handleTouchAttack}
+          onMouseDown={handleTouchAttack}
+          onTouchStart={(event) => {
+            event.preventDefault();
+            handleTouchAttack();
+          }}
         >
           Attack
         </button>
         <button
           className={controlButtonClass}
-          onPointerCancel={stopAllTouchMovement}
-          onPointerDown={() => setTouchMovement("right", true)}
-          onPointerLeave={() => setTouchMovement("right", false)}
-          onPointerUp={() => setTouchMovement("right", false)}
+          {...bindMovementButton("right")}
         >
           Right
         </button>

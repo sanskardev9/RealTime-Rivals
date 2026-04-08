@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 const signalingUrl =
   import.meta.env.VITE_SIGNALING_URL ??
-  "wss://3b89-202-133-75-162.ngrok-free.app/ws";
+  "wss://realtimerivals-backend.onrender.com/ws";
 
 export const useWebRTC = (onData) => {
   const channelRef = useRef(null);
