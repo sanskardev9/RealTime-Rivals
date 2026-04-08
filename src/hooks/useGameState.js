@@ -11,10 +11,13 @@ import {
 export const useGameState = () => {
   const [player, setPlayer] = useState(() => createPlayer({ x: 100 }));
   const [opponent, setOpponent] = useState(() =>
-    createPlayer({ x: 600, direction: "left" }),
+    createPlayer({ x: 600, direction: "left" })
   );
+  const [gameStatus, setGameStatus] = useState("playing");
+
   const attackTimeoutRef = useRef(null);
 
+  // Cleanup
   useEffect(() => {
     return () => {
       if (attackTimeoutRef.current) {
@@ -23,7 +26,19 @@ export const useGameState = () => {
     };
   }, []);
 
+  // 🔥 GAME OVER DETECTION (BOTH SIDES)
+  useEffect(() => {
+    if (player.health <= 0) {
+      setGameStatus("opponentWon");
+    }
+
+    if (opponent.health <= 0) {
+      setGameStatus("playerWon");
+    }
+  }, [player.health, opponent.health]);
+
   const updatePlayer = (input) => {
+    // 🥊 ATTACK
     if (input === "attack") {
       if (attackTimeoutRef.current) {
         clearTimeout(attackTimeoutRef.current);
@@ -32,13 +47,15 @@ export const useGameState = () => {
       setPlayer((currentPlayer) => {
         const attackingPlayer = startAttack(currentPlayer);
 
+        // Apply damage
         setOpponent((currentOpponent) =>
-          applyAttackDamage(attackingPlayer, currentOpponent),
+          applyAttackDamage(attackingPlayer, currentOpponent)
         );
 
         return attackingPlayer;
       });
 
+      // End attack after duration
       attackTimeoutRef.current = setTimeout(() => {
         setPlayer((currentPlayer) => endAttack(currentPlayer));
       }, ATTACK_DURATION);
@@ -46,8 +63,15 @@ export const useGameState = () => {
       return;
     }
 
+    // 🚶 Movement
     setPlayer((currentPlayer) => movePlayer(currentPlayer, input));
   };
 
-  return { player, opponent, setOpponent, updatePlayer, movePlayer };
+  return {
+    player,
+    opponent,
+    setOpponent,
+    updatePlayer,
+    gameStatus,
+  };
 };
