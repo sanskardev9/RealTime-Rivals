@@ -2,12 +2,14 @@ import { useEffect, useRef } from "react";
 import { useGameState } from "../hooks/useGameState";
 import { useControls } from "../hooks/useControls";
 import { useWebRTC } from "../hooks/useWebRTC";
+import { getAttackBoxX } from "../game/collision";
+import HealthBar from "./HealthBar";
 
 export default function GameCanvas() {
   const canvasRef = useRef();
   const playerRef = useRef(null);
   const opponentRef = useRef(null);
-  const { player, opponent, setOpponent, updatePlayer, movePlayer } = useGameState();
+  const { player, opponent, setOpponent, updatePlayer } = useGameState();
 
   useEffect(() => {
     playerRef.current = player;
@@ -21,10 +23,15 @@ export default function GameCanvas() {
     setOpponent(data);
   });
 
-  useControls((input) => {
-    const updated = movePlayer(playerRef.current, input);
+  useEffect(() => {
+    sendData(player);
+  }, [player, sendData]);
 
-    sendData(updated);
+  useControls((input) => {
+    if (!playerRef.current) {
+      return;
+    }
+
     updatePlayer(input);
   });
 
@@ -41,10 +48,18 @@ export default function GameCanvas() {
       // Player
       ctx.fillStyle = "blue";
       ctx.fillRect(currentPlayer.x, 300, 50, 50);
+      if (currentPlayer.isAttacking) {
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(getAttackBoxX(currentPlayer), 315, 20, 20);
+      }
 
       // Opponent
       ctx.fillStyle = "red";
       ctx.fillRect(currentOpponent.x, 300, 50, 50);
+      if (currentOpponent.isAttacking) {
+        ctx.fillStyle = "orange";
+        ctx.fillRect(getAttackBoxX(currentOpponent), 315, 20, 20);
+      }
 
       animationFrameId = requestAnimationFrame(loop);
     };
@@ -56,5 +71,13 @@ export default function GameCanvas() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} width={800} height={400} />;
+  return (
+    <div>
+      <div className="hud">
+        <HealthBar health={player.health} color="blue" />
+        <HealthBar health={opponent.health} color="red" />
+      </div>
+      <canvas ref={canvasRef} width={800} height={400} />
+    </div>
+  );
 }

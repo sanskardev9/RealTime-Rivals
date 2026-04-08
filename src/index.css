@@ -4,7 +4,22 @@ body {
   margin: 0;
   background: #111;
   color: white;
+  font-family: Inter, system-ui, sans-serif;
 }
+
+#root {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.hud {
+  width: 800px;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 auto 12px;
+}
+
 canvas {
   display: block;
   margin: 0 auto;

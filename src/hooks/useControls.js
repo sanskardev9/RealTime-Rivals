@@ -13,6 +13,10 @@ export const useControls = (onInput) => {
 
     const handleKeyDown = (e) => {
       keys[e.key] = true;
+
+      if (e.key === " " && !e.repeat) {
+        onInputRef.current("attack");
+      }
     };
 
     const handleKeyUp = (e) => {
