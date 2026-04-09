@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { INPUT_REPEAT_MS } from "../game/player";
 
 export const useControls = (onInput) => {
   const onInputRef = useRef(onInput);
@@ -9,10 +10,14 @@ export const useControls = (onInput) => {
 
   useEffect(() => {
     const keys = {};
-    let animationFrameId;
+    let movementIntervalId;
 
     const handleKeyDown = (e) => {
       keys[e.key] = true;
+
+      if (e.key === " " && !e.repeat) {
+        onInputRef.current("attack");
+      }
     };
 
     const handleKeyUp = (e) => {
@@ -22,19 +27,15 @@ export const useControls = (onInput) => {
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
 
-    const loop = () => {
+    movementIntervalId = setInterval(() => {
       if (keys["ArrowRight"]) onInputRef.current("right");
       if (keys["ArrowLeft"]) onInputRef.current("left");
-
-      animationFrameId = requestAnimationFrame(loop);
-    };
-
-    loop();
+    }, INPUT_REPEAT_MS);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
-      cancelAnimationFrame(animationFrameId);
+      clearInterval(movementIntervalId);
     };
   }, []);
 };

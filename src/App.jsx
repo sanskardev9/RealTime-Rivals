@@ -10,7 +10,7 @@ export default function App() {
       {!started ? (
         <Lobby onStart={() => setStarted(true)} />
       ) : (
-        <GameCanvas />
+        <GameCanvas /> 
       )}
     </div>
   );
