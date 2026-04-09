@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const DEFAULT_SIGNALING_URL = "wss://realtimerivals-backend.onrender.com/ws";
+const DEFAULT_SIGNALING_URL = "wss://ca8b-110-235-232-160.ngrok-free.app/ws";
 
 const getSignalingUrl = () => {
   const rawUrl = DEFAULT_SIGNALING_URL;
