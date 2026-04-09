@@ -42,6 +42,7 @@ export const useGameState = () => {
   const updatePlayer = (input) => {
     // 🥊 ATTACK
     if (input === "attack") {
+      console.log("Applying local input: attack");
       if (attackTimeoutRef.current) {
         clearTimeout(attackTimeoutRef.current);
       }
@@ -59,7 +60,12 @@ export const useGameState = () => {
     }
 
     // 🚶 Movement
-    setPlayer((currentPlayer) => movePlayer(currentPlayer, input));
+    console.log("Applying local input:", input);
+    setPlayer((currentPlayer) => {
+      const updatedPlayer = movePlayer(currentPlayer, input);
+      console.log("Updated local player:", updatedPlayer);
+      return updatedPlayer;
+    });
   };
 
   const syncOpponent = (remotePlayer) => {
@@ -69,6 +75,7 @@ export const useGameState = () => {
         x: mirrorPlayerX(remotePlayer.x),
         direction: flipDirection(remotePlayer.direction),
       };
+      console.log("Syncing remote player:", normalizedRemotePlayer);
       const isNewAttack =
         normalizedRemotePlayer.isAttacking && !currentOpponent.isAttacking;
 

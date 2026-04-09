@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-const DEFAULT_SIGNALING_URL = "wss://ca8b-110-235-232-160.ngrok-free.app/ws";
+const DEFAULT_SIGNALING_URL = "wss://realtimerivals-backend.onrender.com/ws";
 
 const getSignalingUrl = () => {
   const rawUrl = DEFAULT_SIGNALING_URL;
@@ -79,7 +79,9 @@ export const useWebRTC = (onData) => {
       };
 
       channel.onmessage = (event) => {
-        onDataRef.current(JSON.parse(event.data));
+        const parsedData = JSON.parse(event.data);
+        console.log("Received peer data:", parsedData);
+        onDataRef.current(parsedData);
       };
     };
 
@@ -334,6 +336,7 @@ export const useWebRTC = (onData) => {
 
   const sendData = (data) => {
     if (channelRef.current?.readyState === "open") {
+      console.log("Sending peer data:", data);
       channelRef.current.send(JSON.stringify(data));
     }
   };
