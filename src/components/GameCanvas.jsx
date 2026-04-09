@@ -10,10 +10,6 @@ export default function GameCanvas() {
   const canvasRef = useRef(null);
   const playerRef = useRef(null);
   const opponentRef = useRef(null);
-  const touchControlsRef = useRef({
-    left: false,
-    right: false,
-  });
   const touchMoveIntervalRef = useRef(null);
 
   const {
@@ -59,54 +55,44 @@ export default function GameCanvas() {
   });
 
   useEffect(() => {
-    touchMoveIntervalRef.current = setInterval(() => {
-      if (gameStatus !== "playing" || !playerRef.current) return;
-
-      if (touchControlsRef.current.left) {
-        updatePlayer("left");
-      }
-
-      if (touchControlsRef.current.right) {
-        updatePlayer("right");
-      }
-    }, INPUT_REPEAT_MS);
-
     return () => {
       clearInterval(touchMoveIntervalRef.current);
     };
-  }, [gameStatus, updatePlayer]);
-
-  const setTouchMovement = (direction, isPressed) => {
-    touchControlsRef.current[direction] = isPressed;
-  };
-
-  const stopAllTouchMovement = () => {
-    touchControlsRef.current.left = false;
-    touchControlsRef.current.right = false;
-  };
+  }, []);
 
   const handleTouchAttack = () => {
     if (gameStatus !== "playing") return;
     updatePlayer("attack");
   };
 
+  const startTouchMovement = (direction) => {
+    if (gameStatus !== "playing" || !playerRef.current) return;
+
+    clearInterval(touchMoveIntervalRef.current);
+    updatePlayer(direction);
+    touchMoveIntervalRef.current = setInterval(() => {
+      if (playerRef.current && gameStatus === "playing") {
+        updatePlayer(direction);
+      }
+    }, INPUT_REPEAT_MS);
+  };
+
+  const stopTouchMovement = () => {
+    clearInterval(touchMoveIntervalRef.current);
+    touchMoveIntervalRef.current = null;
+  };
+
   const bindMovementButton = (direction) => ({
-    onMouseDown: () => setTouchMovement(direction, true),
-    onMouseUp: () => setTouchMovement(direction, false),
-    onMouseLeave: () => setTouchMovement(direction, false),
-    onTouchStart: (event) => {
+    onPointerDown: (event) => {
       event.preventDefault();
-      setTouchMovement(direction, true);
+      startTouchMovement(direction);
     },
-    onTouchEnd: (event) => {
+    onPointerUp: (event) => {
       event.preventDefault();
-      setTouchMovement(direction, false);
+      stopTouchMovement();
     },
-    onTouchCancel: (event) => {
-      event.preventDefault();
-      setTouchMovement(direction, false);
-    },
-    onPointerCancel: stopAllTouchMovement,
+    onPointerLeave: stopTouchMovement,
+    onPointerCancel: stopTouchMovement,
   });
 
   const controlButtonClass =
@@ -191,8 +177,7 @@ export default function GameCanvas() {
         </button>
         <button
           className={controlButtonClass}
-          onMouseDown={handleTouchAttack}
-          onTouchStart={(event) => {
+          onPointerDown={(event) => {
             event.preventDefault();
             handleTouchAttack();
           }}
