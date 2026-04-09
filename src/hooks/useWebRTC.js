@@ -1,8 +1,52 @@
 import { useEffect, useRef, useState } from "react";
 
-const signalingUrl =
-  import.meta.env.VITE_SIGNALING_URL ??
-  "wss://realtimerivals-backend.onrender.com/ws";
+const DEFAULT_SIGNALING_URL = "wss://realtimerivals-backend.onrender.com/ws";
+
+const getSignalingUrl = () => {
+  const rawUrl = DEFAULT_SIGNALING_URL;
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+
+    if (parsedUrl.protocol === "http:") {
+      parsedUrl.protocol = "ws:";
+    }
+
+    if (parsedUrl.protocol === "https:") {
+      parsedUrl.protocol = "wss:";
+    }
+
+    if (!parsedUrl.pathname || parsedUrl.pathname === "/") {
+      parsedUrl.pathname = "/ws";
+    }
+
+    return parsedUrl.toString();
+  } catch (error) {
+    console.error("Invalid signaling URL:", rawUrl, error);
+    return DEFAULT_SIGNALING_URL;
+  }
+};
+
+const signalingUrl = getSignalingUrl();
+const iceServers = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:openrelay.metered.ca:80" },
+  {
+    urls: "turn:openrelay.metered.ca:80",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+  {
+    urls: "turn:openrelay.metered.ca:443?transport=tcp",
+    username: "openrelayproject",
+    credential: "openrelayproject",
+  },
+];
 
 export const useWebRTC = (onData) => {
   const channelRef = useRef(null);
@@ -24,7 +68,7 @@ export const useWebRTC = (onData) => {
     let socket;
     let cleanupChannel = null;
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers,
     });
 
     const attachChannel = (channel) => {
@@ -66,6 +110,36 @@ export const useWebRTC = (onData) => {
             candidate: event.candidate,
           })
         );
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log("ICE connection state:", pc.iceConnectionState);
+
+      if (!isMounted) return;
+
+      if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+        setAudioStatus((currentStatus) =>
+          currentStatus === "Microphone connected" ? "Peer connected" : currentStatus
+        );
+      }
+
+      if (pc.iceConnectionState === "failed") {
+        setAudioStatus("Peer connection failed. TURN relay may be unavailable.");
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log("Peer connection state:", pc.connectionState);
+
+      if (!isMounted) return;
+
+      if (pc.connectionState === "failed") {
+        setAudioStatus("Connection failed. Refresh both players and try again.");
+      }
+
+      if (pc.connectionState === "disconnected") {
+        setAudioStatus("Peer disconnected");
       }
     };
 
@@ -153,10 +227,27 @@ export const useWebRTC = (onData) => {
     };
 
     const connectSignaling = () => {
-      socket = new WebSocket(signalingUrl);
+      try {
+        socket = new WebSocket(signalingUrl);
+      } catch (error) {
+        console.error("Failed to create WebSocket:", error);
+
+        if (isMounted) {
+          setAudioStatus("Signaling server URL is invalid.");
+        }
+        return;
+      }
 
       socket.onopen = () => {
         console.log("Connected to signaling server", signalingUrl);
+      };
+
+      socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      socket.onclose = (event) => {
+        console.log("WebSocket closed", event.code, event.reason);
       };
 
       socket.onmessage = async (event) => {
@@ -217,7 +308,8 @@ export const useWebRTC = (onData) => {
       };
     };
 
-    setupAudio().finally(connectSignaling);
+    connectSignaling();
+    setupAudio();
 
     return () => {
       isMounted = false;
