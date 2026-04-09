@@ -3,14 +3,18 @@ import Lobby from "./components/Lobby";
 import GameCanvas from "./components/GameCanvas";
 
 export default function App() {
-  const [started, setStarted] = useState(false);
+  const [session, setSession] = useState(null);
 
   return (
     <div>
-      {!started ? (
-        <Lobby onStart={() => setStarted(true)} />
+      {!session ? (
+        <Lobby onStart={setSession} />
       ) : (
-        <GameCanvas /> 
+        <GameCanvas
+          playerName={session.playerName}
+          roomAction={session.roomAction}
+          roomCode={session.roomCode}
+        />
       )}
     </div>
   );
