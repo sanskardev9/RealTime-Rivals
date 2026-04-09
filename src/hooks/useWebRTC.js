@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 const DEFAULT_SIGNALING_URL = "wss://realtimerivals-backend.onrender.com/ws";
 
-const getSignalingUrl = () => {
+const getSignalingUrl = (roomCode, roomAction) => {
   const rawUrl = DEFAULT_SIGNALING_URL;
 
   try {
@@ -20,14 +20,16 @@ const getSignalingUrl = () => {
       parsedUrl.pathname = "/ws";
     }
 
+    parsedUrl.searchParams.set("room", roomCode);
+    parsedUrl.searchParams.set("action", roomAction);
+
     return parsedUrl.toString();
   } catch (error) {
     console.error("Invalid signaling URL:", rawUrl, error);
-    return DEFAULT_SIGNALING_URL;
+    return `${DEFAULT_SIGNALING_URL}?room=${encodeURIComponent(roomCode)}&action=${encodeURIComponent(roomAction)}`;
   }
 };
 
-const signalingUrl = getSignalingUrl();
 const iceServers = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:openrelay.metered.ca:80" },
@@ -48,7 +50,7 @@ const iceServers = [
   },
 ];
 
-export const useWebRTC = (onData) => {
+export const useWebRTC = (roomCode, roomAction, onData) => {
   const channelRef = useRef(null);
   const onDataRef = useRef(onData);
   const pendingCandidatesRef = useRef([]);
@@ -58,6 +60,9 @@ export const useWebRTC = (onData) => {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [audioSupported, setAudioSupported] = useState(true);
   const [audioStatus, setAudioStatus] = useState("Requesting microphone access...");
+  const [connectionStatus, setConnectionStatus] = useState("Connecting to room...");
+  const [isHost, setIsHost] = useState(false);
+  const [playerNumber, setPlayerNumber] = useState(null);
 
   useEffect(() => {
     onDataRef.current = onData;
@@ -67,6 +72,7 @@ export const useWebRTC = (onData) => {
     let isMounted = true;
     let socket;
     let cleanupChannel = null;
+    const signalingUrl = getSignalingUrl(roomCode, roomAction);
     const pc = new RTCPeerConnection({
       iceServers,
     });
@@ -76,6 +82,9 @@ export const useWebRTC = (onData) => {
 
       channel.onopen = () => {
         console.log("Data channel open");
+        if (isMounted) {
+          setConnectionStatus(`Connected in room ${roomCode}`);
+        }
       };
 
       channel.onmessage = (event) => {
@@ -128,6 +137,7 @@ export const useWebRTC = (onData) => {
 
       if (pc.iceConnectionState === "failed") {
         setAudioStatus("Peer connection failed. TURN relay may be unavailable.");
+        setConnectionStatus("Peer connection failed");
       }
     };
 
@@ -138,10 +148,12 @@ export const useWebRTC = (onData) => {
 
       if (pc.connectionState === "failed") {
         setAudioStatus("Connection failed. Refresh both players and try again.");
+        setConnectionStatus("Connection failed");
       }
 
       if (pc.connectionState === "disconnected") {
         setAudioStatus("Peer disconnected");
+        setConnectionStatus("Peer disconnected");
       }
     };
 
@@ -180,10 +192,7 @@ export const useWebRTC = (onData) => {
         return;
       }
 
-      if (
-        !navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia
-      ) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         if (isMounted) {
           setAudioSupported(false);
           setAudioStatus("Microphone is not supported in this browser.");
@@ -236,12 +245,16 @@ export const useWebRTC = (onData) => {
 
         if (isMounted) {
           setAudioStatus("Signaling server URL is invalid.");
+          setConnectionStatus("Could not connect to signaling server");
         }
         return;
-      }
+      };
 
       socket.onopen = () => {
         console.log("Connected to signaling server", signalingUrl);
+        if (isMounted) {
+          setConnectionStatus(`Joined room ${roomCode}. Waiting for opponent...`);
+        }
       };
 
       socket.onerror = (error) => {
@@ -255,8 +268,22 @@ export const useWebRTC = (onData) => {
       socket.onmessage = async (event) => {
         const message = JSON.parse(event.data);
 
-        if (message.type === "ready" && message.initiator) {
-          await startOffer();
+        if (message.type === "joined") {
+          setPlayerNumber(message.playerNumber);
+          setConnectionStatus(`Joined room ${message.room}. Waiting for opponent...`);
+        }
+
+        if (message.type === "ready") {
+          setIsHost(message.initiator);
+          setConnectionStatus(
+            message.initiator
+              ? `Room ${message.room} ready. You are Host.`
+              : `Room ${message.room} ready. You joined as Player 2.`
+          );
+
+          if (message.initiator) {
+            await startOffer();
+          }
         }
 
         if (message.type === "offer") {
@@ -295,6 +322,7 @@ export const useWebRTC = (onData) => {
 
           if (isMounted) {
             setAudioStatus("Peer disconnected");
+            setConnectionStatus(`Room ${roomCode} is waiting for another player...`);
           }
 
           console.log("Peer disconnected");
@@ -302,6 +330,9 @@ export const useWebRTC = (onData) => {
 
         if (message.type === "error") {
           console.error(message.message);
+          if (isMounted) {
+            setConnectionStatus(message.message);
+          }
         }
       };
 
@@ -323,7 +354,7 @@ export const useWebRTC = (onData) => {
       }
       pc.close();
     };
-  }, []);
+  }, [roomAction, roomCode]);
 
   const toggleAudio = () => {
     const [audioTrack] = localStreamRef.current?.getAudioTracks() ?? [];
@@ -345,6 +376,9 @@ export const useWebRTC = (onData) => {
     audioEnabled,
     audioStatus,
     audioSupported,
+    connectionStatus,
+    isHost,
+    playerNumber,
     remoteAudioRef,
     sendData,
     toggleAudio,

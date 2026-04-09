@@ -23,6 +23,11 @@ export const useControls = (onInput) => {
         console.log("Attack key down: Space");
         onInputRef.current("attack");
       }
+
+      if ((e.key === "q" || e.key === "Q") && !e.repeat) {
+        console.log("Special attack key down: Q");
+        onInputRef.current("specialAttack");
+      }
     };
 
     const handleKeyUp = (e) => {
