@@ -31,11 +31,13 @@ const invertMovementInput = (input) => {
   return input;
 };
 
+const createInitialPlayerState = () => createPlayer({ x: 100 });
+const createInitialOpponentState = () =>
+  createPlayer({ x: 600, direction: "left" });
+
 export const useGameState = (isHost) => {
-  const [player, setPlayer] = useState(() => createPlayer({ x: 100 }));
-  const [opponent, setOpponent] = useState(() =>
-    createPlayer({ x: 600, direction: "left" })
-  );
+  const [player, setPlayer] = useState(createInitialPlayerState);
+  const [opponent, setOpponent] = useState(createInitialOpponentState);
   const [gameStatus, setGameStatus] = useState("playing");
 
   const playerAttackTimeoutRef = useRef(null);
@@ -54,12 +56,19 @@ export const useGameState = (isHost) => {
   }, []);
 
   useEffect(() => {
+    if (player.health <= 0 && opponent.health <= 0) {
+      setGameStatus("tie");
+      return;
+    }
+
     if (player.health <= 0) {
       setGameStatus("opponentWon");
+      return;
     }
 
     if (opponent.health <= 0) {
       setGameStatus("playerWon");
+      return;
     }
 
     if (player.health > 0 && opponent.health > 0) {
@@ -205,12 +214,29 @@ export const useGameState = (isHost) => {
     setGameStatus(state.gameStatus ?? "playing");
   };
 
+  const resetGame = () => {
+    if (playerAttackTimeoutRef.current) {
+      clearTimeout(playerAttackTimeoutRef.current);
+      playerAttackTimeoutRef.current = null;
+    }
+
+    if (opponentAttackTimeoutRef.current) {
+      clearTimeout(opponentAttackTimeoutRef.current);
+      opponentAttackTimeoutRef.current = null;
+    }
+
+    setPlayer(createInitialPlayerState());
+    setOpponent(createInitialOpponentState());
+    setGameStatus("playing");
+  };
+
   return {
     player,
     opponent,
     gameStatus,
     updatePlayer,
     applyRemoteInput,
+    resetGame,
     syncHostState,
   };
 };
