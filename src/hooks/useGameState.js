@@ -42,6 +42,16 @@ export const useGameState = (isHost) => {
 
   const playerAttackTimeoutRef = useRef(null);
   const opponentAttackTimeoutRef = useRef(null);
+  const playerRef = useRef(createInitialPlayerState());
+  const opponentRef = useRef(createInitialOpponentState());
+
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
+
+  useEffect(() => {
+    opponentRef.current = opponent;
+  }, [opponent]);
 
   useEffect(() => {
     return () => {
@@ -98,51 +108,46 @@ export const useGameState = (isHost) => {
 
   const updatePlayer = (input) => {
     if (input === "attack") {
-      setPlayer((currentPlayer) => {
-        const attackingPlayer = startAttack(currentPlayer);
+      const attackingPlayer = startAttack(playerRef.current);
 
-        if (isHost) {
-          setOpponent((currentOpponent) => {
-            const { damagedDefender, didLandHit } = resolveDamage(
-              attackingPlayer,
-              currentOpponent,
-              applyAttackDamage
-            );
+      if (isHost) {
+        const { damagedDefender, didLandHit } = resolveDamage(
+          attackingPlayer,
+          opponentRef.current,
+          applyAttackDamage
+        );
 
-            if (didLandHit) {
-              setPlayer((latestPlayer) => registerHit(latestPlayer));
-            }
+        const updatedPlayer = didLandHit
+          ? registerHit(attackingPlayer)
+          : attackingPlayer;
 
-            return damagedDefender;
-          });
-        }
-
-        return attackingPlayer;
-      });
+        setPlayer(updatedPlayer);
+        setOpponent(damagedDefender);
+      } else {
+        setPlayer(attackingPlayer);
+      }
 
       queueAttackEnd(setPlayer, playerAttackTimeoutRef);
       return;
     }
 
     if (input === "specialAttack") {
-      setPlayer((currentPlayer) => {
-        if (!currentPlayer.specialReady) {
-          return currentPlayer;
-        }
+      if (!playerRef.current.specialReady) {
+        return;
+      }
 
-        const specialAttacker = startSpecialAttack(currentPlayer);
+      const specialAttacker = startSpecialAttack(playerRef.current);
 
-        if (isHost) {
-          setOpponent((currentOpponent) =>
-            resolveDamage(specialAttacker, currentOpponent, applySpecialAttackDamage)
-              .damagedDefender
-          );
-        }
+      if (isHost) {
+        setOpponent(
+          resolveDamage(specialAttacker, opponentRef.current, applySpecialAttackDamage)
+            .damagedDefender
+        );
+      }
 
-        queueAttackEnd(setPlayer, playerAttackTimeoutRef, SPECIAL_ATTACK_DURATION);
-        return specialAttacker;
-      });
+      setPlayer(specialAttacker);
 
+      queueAttackEnd(setPlayer, playerAttackTimeoutRef, SPECIAL_ATTACK_DURATION);
       return;
     }
 
@@ -155,47 +160,37 @@ export const useGameState = (isHost) => {
     }
 
     if (input === "attack") {
-      setOpponent((currentOpponent) => {
-        const attackingOpponent = startAttack(currentOpponent);
+      const attackingOpponent = startAttack(opponentRef.current);
+      const { damagedDefender, didLandHit } = resolveDamage(
+        attackingOpponent,
+        playerRef.current,
+        applyAttackDamage
+      );
+      const updatedOpponent = didLandHit
+        ? registerHit(attackingOpponent)
+        : attackingOpponent;
 
-        setPlayer((currentPlayer) => {
-          const { damagedDefender, didLandHit } = resolveDamage(
-            attackingOpponent,
-            currentPlayer,
-            applyAttackDamage
-          );
-
-          if (didLandHit) {
-            setOpponent((latestOpponent) => registerHit(latestOpponent));
-          }
-
-          return damagedDefender;
-        });
-
-        return attackingOpponent;
-      });
+      setPlayer(damagedDefender);
+      setOpponent(updatedOpponent);
 
       queueAttackEnd(setOpponent, opponentAttackTimeoutRef);
       return;
     }
 
     if (input === "specialAttack") {
-      setOpponent((currentOpponent) => {
-        if (!currentOpponent.specialReady) {
-          return currentOpponent;
-        }
+      if (!opponentRef.current.specialReady) {
+        return;
+      }
 
-        const specialAttacker = startSpecialAttack(currentOpponent);
+      const specialAttacker = startSpecialAttack(opponentRef.current);
 
-        setPlayer((currentPlayer) =>
-          resolveDamage(specialAttacker, currentPlayer, applySpecialAttackDamage)
-            .damagedDefender
-        );
+      setPlayer(
+        resolveDamage(specialAttacker, playerRef.current, applySpecialAttackDamage)
+          .damagedDefender
+      );
+      setOpponent(specialAttacker);
 
-        queueAttackEnd(setOpponent, opponentAttackTimeoutRef, SPECIAL_ATTACK_DURATION);
-        return specialAttacker;
-      });
-
+      queueAttackEnd(setOpponent, opponentAttackTimeoutRef, SPECIAL_ATTACK_DURATION);
       return;
     }
 
