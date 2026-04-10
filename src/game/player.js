@@ -4,7 +4,8 @@ const MOVE_SPEED = 4;
 const INPUT_REPEAT_MS = 45;
 const ATTACK_DURATION = 200;
 const SPECIAL_ATTACK_DURATION = 300;
-const SPECIAL_HIT_TARGET = 10;
+const SPECIAL_HIT_TARGET = 12;
+const SPECIAL_HIT_REWARD = 2;
 
 export const createPlayer = ({
   x,
@@ -62,7 +63,7 @@ export const startSpecialAttack = (currentPlayer) => ({
 });
 
 export const registerHit = (currentPlayer) => {
-  const nextHitCount = currentPlayer.hitCount + 1;
+  const nextHitCount = currentPlayer.hitCount + SPECIAL_HIT_REWARD;
 
   if (nextHitCount >= SPECIAL_HIT_TARGET) {
     return {
@@ -92,4 +93,5 @@ export {
   PLAYER_WIDTH,
   SPECIAL_ATTACK_DURATION,
   SPECIAL_HIT_TARGET,
+  SPECIAL_HIT_REWARD,
 };

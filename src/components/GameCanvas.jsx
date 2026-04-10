@@ -9,6 +9,27 @@ import HealthBar from "./HealthBar";
 const ARENA_HEIGHT = 400;
 const FLOOR_Y = 350;
 
+const ChargeMeter = ({ align = "left", charge, ready, tint }) => {
+  const chargePercent = Math.max(0, Math.min(100, (charge / SPECIAL_HIT_TARGET) * 100));
+
+  return (
+    <div className={`mt-2 ${align === "right" ? "text-right" : ""}`}>
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{
+            width: `${chargePercent}%`,
+            background: ready
+              ? "linear-gradient(90deg, #f59e0b 0%, #fde047 45%, #fff7ae 100%)"
+              : tint,
+            boxShadow: ready ? "0 0 12px rgba(253, 224, 71, 0.55)" : "none",
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const drawStage = (ctx, pulse) => {
   const skyGradient = ctx.createLinearGradient(0, 0, 0, ARENA_HEIGHT);
   skyGradient.addColorStop(0, "#090909");
@@ -89,31 +110,68 @@ const drawStage = (ctx, pulse) => {
   }
 };
 
-const drawShadow = (ctx, player, intensity = 0.18) => {
+const drawShadow = (ctx, player, intensity = 0.18, pose = "normal") => {
+  if (pose === "celebrate") {
+    intensity = 0.12;
+  }
+
   ctx.save();
   ctx.fillStyle = `rgba(0, 0, 0, ${intensity})`;
   ctx.beginPath();
-  ctx.ellipse(player.x + PLAYER_WIDTH / 2, FLOOR_Y + 8, 28, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    player.x + PLAYER_WIDTH / 2,
+    FLOOR_Y + 8,
+    pose === "down" ? 34 : 28,
+    pose === "down" ? 10 : 8,
+    0,
+    0,
+    Math.PI * 2
+  );
   ctx.fill();
   ctx.restore();
 };
 
-const drawFighter = (ctx, player, palette, time) => {
+const drawFighter = (ctx, player, palette, time, pose = "normal") => {
   const facing = player.direction === "left" ? -1 : 1;
   const centerX = player.x + PLAYER_WIDTH / 2;
   const centerY = FLOOR_Y - 38;
   const idleSwing = Math.sin(time / 120) * 1.5;
-  const isPunching = player.isAttacking || player.isSpecialAttacking;
-  const torsoLean = player.isSpecialAttacking ? 14 : player.isAttacking ? 8 : 2;
-  const leadFistX = player.isSpecialAttacking ? 40 : player.isAttacking ? 28 : 12;
-  const leadFistY = player.isSpecialAttacking ? -2 : player.isAttacking ? 2 : 10;
-  const rearFistX = player.isSpecialAttacking ? -6 : -10;
-  const rearFistY = player.isSpecialAttacking ? 10 : 4;
-  const kneeBend = player.isPunching ? 4 : 0;
+  const isDown = pose === "down";
+  const isCelebrating = pose === "celebrate";
+  const isPunching = !isDown && !isCelebrating && (player.isAttacking || player.isSpecialAttacking);
+  const torsoLean = isCelebrating
+    ? 0
+    : player.isSpecialAttacking
+      ? 14
+      : player.isAttacking
+        ? 8
+        : 2;
+  const leadFistX = isCelebrating
+    ? 12
+    : player.isSpecialAttacking
+      ? 40
+      : player.isAttacking
+        ? 28
+        : 12;
+  const leadFistY = isCelebrating
+    ? -34
+    : player.isSpecialAttacking
+      ? -2
+      : player.isAttacking
+        ? 2
+        : 10;
+  const rearFistX = isCelebrating ? -12 : player.isSpecialAttacking ? -6 : -10;
+  const rearFistY = isCelebrating ? -36 : player.isSpecialAttacking ? 10 : 4;
+  const kneeBend = isDown ? 10 : isPunching ? 4 : 0;
 
   ctx.save();
-  ctx.translate(centerX, centerY + idleSwing);
-  ctx.scale(facing, 1);
+  ctx.translate(centerX, centerY + (isDown ? 40 : idleSwing));
+  ctx.scale(isCelebrating ? 1 : facing, 1);
+
+  if (isDown) {
+    ctx.rotate(Math.PI / 2.35);
+  }
+
   ctx.rotate((-torsoLean * Math.PI) / 180);
 
   ctx.strokeStyle = palette.limb;
@@ -122,9 +180,9 @@ const drawFighter = (ctx, player, palette, time) => {
 
   ctx.beginPath();
   ctx.moveTo(-8, 26);
-  ctx.lineTo(-14, 46 + kneeBend);
+  ctx.lineTo(isDown ? -2 : -14, 46 + kneeBend);
   ctx.moveTo(8, 26);
-  ctx.lineTo(14, 50 - kneeBend);
+  ctx.lineTo(isDown ? 18 : 14, 50 - kneeBend);
   ctx.stroke();
 
   ctx.beginPath();
@@ -141,7 +199,7 @@ const drawFighter = (ctx, player, palette, time) => {
 
   ctx.fillStyle = palette.skin;
   ctx.beginPath();
-  ctx.arc(leadFistX, leadFistY, player.isSpecialAttacking ? 7 : 5, 0, Math.PI * 2);
+  ctx.arc(leadFistX, leadFistY, player.isSpecialAttacking && !isCelebrating ? 7 : 5, 0, Math.PI * 2);
   ctx.arc(rearFistX, rearFistY, 4.5, 0, Math.PI * 2);
   ctx.fill();
 
@@ -168,7 +226,7 @@ const drawFighter = (ctx, player, palette, time) => {
   ctx.arc(-1, -24, 14, Math.PI, Math.PI * 2);
   ctx.fill();
 
-  if (player.isSpecialAttacking) {
+  if (player.isSpecialAttacking && !isDown && !isCelebrating) {
     ctx.fillStyle = palette.glow;
     ctx.beginPath();
     ctx.arc(leadFistX + 2, leadFistY, 10 + Math.sin(time / 45) * 2, 0, Math.PI * 2);
@@ -386,12 +444,16 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
     "select-none touch-none rounded-2xl border border-zinc-500 bg-zinc-800 px-5 py-4 text-base font-semibold text-white active:scale-95 active:bg-zinc-700";
 
   const resultLabel = useMemo(() => {
+    if (player.health <= 0 && opponent.health <= 0) {
+      return "Match Tie";
+    }
+
     if (player.health <= 0) {
-      return "You Lose 💀";
+      return "You Lose";
     }
 
     if (opponent.health <= 0) {
-      return "You Win 🏆";
+      return "You Win";
     }
 
     return "";
@@ -412,39 +474,68 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
 
       if (!currentPlayer || !currentOpponent) return;
 
+      const playerPose =
+        currentPlayer.health <= 0 && currentOpponent.health <= 0
+          ? "down"
+          : currentPlayer.health <= 0
+            ? "down"
+            : currentOpponent.health <= 0
+              ? "celebrate"
+              : "normal";
+      const opponentPose =
+        currentPlayer.health <= 0 && currentOpponent.health <= 0
+          ? "down"
+          : currentOpponent.health <= 0
+            ? "down"
+            : currentPlayer.health <= 0
+              ? "celebrate"
+              : "normal";
+
       ctx.clearRect(0, 0, 800, ARENA_HEIGHT);
       drawStage(ctx, pulse);
-      drawShadow(ctx, currentPlayer);
-      drawShadow(ctx, currentOpponent);
+      drawShadow(ctx, currentPlayer, 0.18, playerPose);
+      drawShadow(ctx, currentOpponent, 0.18, opponentPose);
 
-      if (currentPlayer.isSpecialAttacking) {
+      if (currentPlayer.isSpecialAttacking && playerPose === "normal") {
         drawBeam(ctx, currentPlayer, "#a855f7", "#e9d5ff", time);
-      } else if (currentPlayer.isAttacking) {
+      } else if (currentPlayer.isAttacking && playerPose === "normal") {
         drawAttackSlash(ctx, currentPlayer, "#fde047");
       }
 
-      if (currentOpponent.isSpecialAttacking) {
+      if (currentOpponent.isSpecialAttacking && opponentPose === "normal") {
         drawBeam(ctx, currentOpponent, "#f97316", "#fdba74", time + 60);
-      } else if (currentOpponent.isAttacking) {
+      } else if (currentOpponent.isAttacking && opponentPose === "normal") {
         drawAttackSlash(ctx, currentOpponent, "#fb923c");
       }
 
-      drawFighter(ctx, currentPlayer, {
-        accent: "#93c5fd",
-        body: "#1d4ed8",
-        glow: "rgba(147, 197, 253, 0.45)",
-        hair: "#0f172a",
-        limb: "#cbd5e1",
-        skin: "#f1c27d",
-      }, time);
-      drawFighter(ctx, currentOpponent, {
-        accent: "#fdba74",
-        body: "#b91c1c",
-        glow: "rgba(251, 146, 60, 0.42)",
-        hair: "#3f1d0f",
-        limb: "#fecaca",
-        skin: "#e0ac69",
-      }, time + 90);
+      drawFighter(
+        ctx,
+        currentPlayer,
+        {
+          accent: "#93c5fd",
+          body: "#1d4ed8",
+          glow: "rgba(147, 197, 253, 0.45)",
+          hair: "#0f172a",
+          limb: "#cbd5e1",
+          skin: "#f1c27d",
+        },
+        time,
+        playerPose
+      );
+      drawFighter(
+        ctx,
+        currentOpponent,
+        {
+          accent: "#fdba74",
+          body: "#b91c1c",
+          glow: "rgba(251, 146, 60, 0.42)",
+          hair: "#3f1d0f",
+          limb: "#fecaca",
+          skin: "#e0ac69",
+        },
+        time + 90,
+        opponentPose
+      );
 
       animationFrameId = requestAnimationFrame(loop);
     };
@@ -475,19 +566,22 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
       <div className="mb-3 grid w-full max-w-[800px] grid-cols-2 gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Your Charge</p>
-          <p>
-            {player.specialReady
-              ? "Long-range attack ready"
-              : `${player.hitCount}/${SPECIAL_HIT_TARGET} hits`}
-          </p>
+          <p>{player.specialReady ? "Long-range attack ready" : "Charging beam..."}</p>
+          <ChargeMeter
+            charge={player.hitCount}
+            ready={player.specialReady}
+            tint="linear-gradient(90deg, #2563eb 0%, #7c3aed 100%)"
+          />
         </div>
         <div className="text-right">
-          <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Opponent Charge</p>
-          <p>
-            {opponent.specialReady
-              ? "Long-range attack ready"
-              : `${opponent.hitCount}/${SPECIAL_HIT_TARGET} hits`}
-          </p>
+          <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Opp. Charge</p>
+          <p>{opponent.specialReady ? "Long-range attack ready" : "Charging beam..."}</p>
+          <ChargeMeter
+            align="right"
+            charge={opponent.hitCount}
+            ready={opponent.specialReady}
+            tint="linear-gradient(90deg, #dc2626 0%, #f97316 100%)"
+          />
         </div>
       </div>
 
@@ -515,10 +609,7 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
       <audio ref={remoteAudioRef} autoPlay playsInline />
 
       <div className="mt-4 grid w-full max-w-[800px] grid-cols-4 gap-3 sm:hidden">
-        <button
-          className={controlButtonClass}
-          {...bindMovementButton("left")}
-        >
+        <button className={controlButtonClass} {...bindMovementButton("left")}>
           Left
         </button>
         <button
@@ -540,10 +631,7 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
         >
           Beam
         </button>
-        <button
-          className={controlButtonClass}
-          {...bindMovementButton("right")}
-        >
+        <button className={controlButtonClass} {...bindMovementButton("right")}>
           Right
         </button>
       </div>
