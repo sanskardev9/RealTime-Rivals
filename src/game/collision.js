@@ -1,7 +1,7 @@
 import { clampHealth, PLAYER_WIDTH } from "./player";
 
 const ATTACK_RANGE = 60;
-const ATTACK_DAMAGE = 1;
+const ATTACK_DAMAGE = 2;
 const SPECIAL_ATTACK_RANGE = 220;
 const SPECIAL_ATTACK_DAMAGE = 12;
 
