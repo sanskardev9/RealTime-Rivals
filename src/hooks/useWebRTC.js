@@ -50,7 +50,8 @@ const iceServers = [
   },
 ];
 
-export const useWebRTC = (roomCode, roomAction, onData) => {
+export const useWebRTC = (roomCode, roomAction, onData, options = {}) => {
+  const { enabled = true } = options;
   const channelRef = useRef(null);
   const onDataRef = useRef(onData);
   const pendingCandidatesRef = useRef([]);
@@ -58,10 +59,14 @@ export const useWebRTC = (roomCode, roomAction, onData) => {
   const remoteAudioRef = useRef(null);
   const localStreamRef = useRef(null);
   const [audioEnabled, setAudioEnabled] = useState(false);
-  const [audioSupported, setAudioSupported] = useState(true);
-  const [audioStatus, setAudioStatus] = useState("Requesting microphone access...");
-  const [connectionStatus, setConnectionStatus] = useState("Connecting to room...");
-  const [isHost, setIsHost] = useState(false);
+  const [audioSupported, setAudioSupported] = useState(enabled);
+  const [audioStatus, setAudioStatus] = useState(
+    enabled ? "Requesting microphone access..." : "Voice chat unavailable in computer matches"
+  );
+  const [connectionStatus, setConnectionStatus] = useState(
+    enabled ? "Connecting to room..." : "Computer opponent ready"
+  );
+  const [isHost, setIsHost] = useState(!enabled);
   const [playerNumber, setPlayerNumber] = useState(null);
 
   useEffect(() => {
@@ -69,6 +74,16 @@ export const useWebRTC = (roomCode, roomAction, onData) => {
   }, [onData]);
 
   useEffect(() => {
+    if (!enabled) {
+      setAudioEnabled(false);
+      setAudioSupported(false);
+      setAudioStatus("Voice chat unavailable in computer matches");
+      setConnectionStatus("Computer opponent ready");
+      setIsHost(true);
+      setPlayerNumber(1);
+      return undefined;
+    }
+
     let isMounted = true;
     let socket;
     let cleanupChannel = null;
@@ -354,9 +369,11 @@ export const useWebRTC = (roomCode, roomAction, onData) => {
       }
       pc.close();
     };
-  }, [roomAction, roomCode]);
+  }, [enabled, roomAction, roomCode]);
 
   const toggleAudio = () => {
+    if (!enabled) return;
+
     const [audioTrack] = localStreamRef.current?.getAudioTracks() ?? [];
     if (!audioTrack) return;
 
@@ -366,6 +383,8 @@ export const useWebRTC = (roomCode, roomAction, onData) => {
   };
 
   const sendData = (data) => {
+    if (!enabled) return;
+
     if (channelRef.current?.readyState === "open") {
       console.log("Sending peer data:", data);
       channelRef.current.send(JSON.stringify(data));

@@ -12,6 +12,7 @@ const generateRoomCode = () =>
 
 export default function Lobby({ onStart }) {
   const [joinCode, setJoinCode] = useState("");
+  const [computerDifficulty, setComputerDifficulty] = useState("medium");
   const [playerName, setPlayerName] = useState(() => {
     if (typeof window === "undefined") {
       return "";
@@ -23,10 +24,17 @@ export default function Lobby({ onStart }) {
   const normalizedJoinCode = joinCode.trim().toUpperCase();
   const normalizedPlayerName = playerName.trim();
 
-  const startSession = ({ roomAction, roomCode }) => {
+  const startSession = ({
+    difficulty = null,
+    matchType = "online",
+    roomAction,
+    roomCode,
+  }) => {
     window.localStorage.setItem(PLAYER_NAME_STORAGE_KEY, normalizedPlayerName);
 
     onStart({
+      difficulty,
+      matchType,
       playerName: normalizedPlayerName,
       roomAction,
       roomCode,
@@ -87,6 +95,50 @@ export default function Lobby({ onStart }) {
             }
           >
             Join Game
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Computer Battle</p>
+          <p className="mt-2 text-sm text-zinc-400">
+            Fight locally against an AI opponent. Voice chat stays available only in
+            online matches.
+          </p>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {["easy", "medium", "hard"].map((level) => {
+              const isSelected = computerDifficulty === level;
+
+              return (
+                <button
+                  key={level}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold capitalize ${
+                    isSelected
+                      ? "border-sky-400 bg-sky-500/20 text-sky-100"
+                      : "border-zinc-700 bg-zinc-900 text-zinc-300"
+                  }`}
+                  onClick={() => setComputerDifficulty(level)}
+                  type="button"
+                >
+                  {level}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            className="mt-4 w-full rounded-lg bg-sky-400 px-4 py-3 font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!normalizedPlayerName}
+            onClick={() =>
+              startSession({
+                difficulty: computerDifficulty,
+                matchType: "computer",
+                roomAction: "computer",
+                roomCode: `CPU-${computerDifficulty.toUpperCase()}`,
+              })
+            }
+          >
+            Fight Computer
           </button>
         </div>
       </div>

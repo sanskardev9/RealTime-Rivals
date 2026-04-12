@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { applyAttackDamage, applySpecialAttackDamage } from "../game/collision";
 import {
   ATTACK_DURATION,
+  PLAYER_WIDTH,
   createPlayer,
   endAttack,
   flipDirection,
@@ -35,7 +36,27 @@ const createInitialPlayerState = () => createPlayer({ x: 100 });
 const createInitialOpponentState = () =>
   createPlayer({ x: 600, direction: "left" });
 
-export const useGameState = (isHost) => {
+const BOT_PROFILES = {
+  easy: {
+    attackChance: 0.45,
+    specialChance: 0.2,
+    tickMs: 420,
+  },
+  medium: {
+    attackChance: 0.72,
+    specialChance: 0.45,
+    tickMs: 250,
+  },
+  hard: {
+    attackChance: 0.92,
+    specialChance: 0.7,
+    tickMs: 150,
+  },
+};
+
+export const useGameState = (isHost, options = {}) => {
+  const { difficulty = "medium", opponentMode = "remote" } = options;
+  const isComputerOpponent = opponentMode === "computer";
   const [player, setPlayer] = useState(createInitialPlayerState);
   const [opponent, setOpponent] = useState(createInitialOpponentState);
   const [gameStatus, setGameStatus] = useState("playing");
@@ -106,6 +127,46 @@ export const useGameState = (isHost) => {
     };
   };
 
+  const runOpponentInput = (input, { invertMovement = false } = {}) => {
+    if (input === "attack") {
+      const attackingOpponent = startAttack(opponentRef.current);
+      const { damagedDefender, didLandHit } = resolveDamage(
+        attackingOpponent,
+        playerRef.current,
+        applyAttackDamage
+      );
+      const updatedOpponent = didLandHit
+        ? registerHit(attackingOpponent)
+        : attackingOpponent;
+
+      setPlayer(damagedDefender);
+      setOpponent(updatedOpponent);
+
+      queueAttackEnd(setOpponent, opponentAttackTimeoutRef);
+      return;
+    }
+
+    if (input === "specialAttack") {
+      if (!opponentRef.current.specialReady) {
+        return;
+      }
+
+      const specialAttacker = startSpecialAttack(opponentRef.current);
+
+      setPlayer(
+        resolveDamage(specialAttacker, playerRef.current, applySpecialAttackDamage)
+          .damagedDefender
+      );
+      setOpponent(specialAttacker);
+
+      queueAttackEnd(setOpponent, opponentAttackTimeoutRef, SPECIAL_ATTACK_DURATION);
+      return;
+    }
+
+    const movementInput = invertMovement ? invertMovementInput(input) : input;
+    setOpponent((currentOpponent) => movePlayer(currentOpponent, movementInput));
+  };
+
   const updatePlayer = (input) => {
     if (input === "attack") {
       const attackingPlayer = startAttack(playerRef.current);
@@ -159,44 +220,7 @@ export const useGameState = (isHost) => {
       return;
     }
 
-    if (input === "attack") {
-      const attackingOpponent = startAttack(opponentRef.current);
-      const { damagedDefender, didLandHit } = resolveDamage(
-        attackingOpponent,
-        playerRef.current,
-        applyAttackDamage
-      );
-      const updatedOpponent = didLandHit
-        ? registerHit(attackingOpponent)
-        : attackingOpponent;
-
-      setPlayer(damagedDefender);
-      setOpponent(updatedOpponent);
-
-      queueAttackEnd(setOpponent, opponentAttackTimeoutRef);
-      return;
-    }
-
-    if (input === "specialAttack") {
-      if (!opponentRef.current.specialReady) {
-        return;
-      }
-
-      const specialAttacker = startSpecialAttack(opponentRef.current);
-
-      setPlayer(
-        resolveDamage(specialAttacker, playerRef.current, applySpecialAttackDamage)
-          .damagedDefender
-      );
-      setOpponent(specialAttacker);
-
-      queueAttackEnd(setOpponent, opponentAttackTimeoutRef, SPECIAL_ATTACK_DURATION);
-      return;
-    }
-
-    setOpponent((currentOpponent) =>
-      movePlayer(currentOpponent, invertMovementInput(input))
-    );
+    runOpponentInput(input, { invertMovement: true });
   };
 
   const syncHostState = (state) => {
@@ -224,6 +248,60 @@ export const useGameState = (isHost) => {
     setOpponent(createInitialOpponentState());
     setGameStatus("playing");
   };
+
+  useEffect(() => {
+    if (!isComputerOpponent || !isHost || gameStatus !== "playing") {
+      return undefined;
+    }
+
+    const botProfile = BOT_PROFILES[difficulty] ?? BOT_PROFILES.medium;
+
+    const intervalId = window.setInterval(() => {
+      const currentPlayer = playerRef.current;
+      const currentOpponent = opponentRef.current;
+
+      if (!currentPlayer || !currentOpponent) {
+        return;
+      }
+
+      if (currentPlayer.health <= 0 || currentOpponent.health <= 0) {
+        return;
+      }
+
+      const playerCenter = currentPlayer.x + PLAYER_WIDTH / 2;
+      const opponentCenter = currentOpponent.x + PLAYER_WIDTH / 2;
+      const distance = Math.abs(playerCenter - opponentCenter);
+      const moveTowardPlayer = opponentCenter > playerCenter ? "left" : "right";
+      const moveAwayFromPlayer = moveTowardPlayer === "left" ? "right" : "left";
+
+      if (
+        currentOpponent.specialReady &&
+        distance <= 210 &&
+        Math.random() < botProfile.specialChance
+      ) {
+        runOpponentInput("specialAttack");
+        return;
+      }
+
+      if (distance <= 58) {
+        if (Math.random() < botProfile.attackChance) {
+          runOpponentInput("attack");
+          return;
+        }
+
+        if (difficulty === "easy" && Math.random() < 0.35) {
+          runOpponentInput(moveAwayFromPlayer);
+          return;
+        }
+      }
+
+      if (distance > 46) {
+        runOpponentInput(moveTowardPlayer);
+      }
+    }, botProfile.tickMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [difficulty, gameStatus, isComputerOpponent, isHost]);
 
   return {
     player,

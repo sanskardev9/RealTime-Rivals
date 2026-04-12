@@ -291,7 +291,14 @@ const drawBeam = (ctx, player, beamColor, coreColor, time) => {
   ctx.restore();
 };
 
-export default function GameCanvas({ roomCode, roomAction, playerName }) {
+export default function GameCanvas({
+  difficulty = null,
+  matchType = "online",
+  playerName,
+  roomAction,
+  roomCode,
+}) {
+  const isComputerMatch = matchType === "computer";
   const canvasRef = useRef(null);
   const playerRef = useRef(null);
   const opponentRef = useRef(null);
@@ -326,7 +333,7 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
 
       syncHostStateRef.current?.(data.state);
     }
-  });
+  }, { enabled: !isComputerMatch });
 
   const {
     player,
@@ -335,7 +342,10 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
     updatePlayer,
     applyRemoteInput,
     syncHostState,
-  } = useGameState(isHost);
+  } = useGameState(isHost, {
+    difficulty,
+    opponentMode: isComputerMatch ? "computer" : "remote",
+  });
 
   useEffect(() => {
     playerRef.current = player;
@@ -358,12 +368,31 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
   }, [isHost]);
 
   useEffect(() => {
+    if (!isComputerMatch) {
+      return;
+    }
+
+    const difficultyLabel = difficulty
+      ? `${difficulty[0].toUpperCase()}${difficulty.slice(1)}`
+      : "Medium";
+    setOpponentName(`CPU ${difficultyLabel}`);
+  }, [difficulty, isComputerMatch]);
+
+  useEffect(() => {
+    if (isComputerMatch) {
+      return;
+    }
+
     if (connectionStatus.startsWith("Connected in room")) {
       sendData({ type: "profile", name: playerName });
     }
-  }, [connectionStatus, playerName, sendData]);
+  }, [connectionStatus, isComputerMatch, playerName, sendData]);
 
   useEffect(() => {
+    if (isComputerMatch) {
+      return;
+    }
+
     if (isHost) {
       sendData({
         type: "state",
@@ -378,12 +407,12 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
         },
       });
     }
-  }, [gameStatus, isHost, opponent, opponentName, player, playerName, sendData]);
+  }, [gameStatus, isComputerMatch, isHost, opponent, opponentName, player, playerName, sendData]);
 
   const handleInput = (input) => {
     if (gameStatus !== "playing") return;
 
-    if (isHost) {
+    if (isComputerMatch || isHost) {
       updatePlayer(input);
       return;
     }
@@ -554,7 +583,7 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
         </div>
         <div className="text-right">
           <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Role</p>
-          <p>{isHost ? "Host" : "Client"}</p>
+          <p>{isComputerMatch ? "Solo" : isHost ? "Host" : "Client"}</p>
         </div>
       </div>
 
@@ -586,19 +615,27 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
       </div>
 
       <div className="mb-3 flex w-full max-w-[800px] items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm">
-        <span>{connectionStatus}</span>
+        <span>
+          {isComputerMatch
+            ? `Computer Battle${
+                difficulty ? ` · ${difficulty[0].toUpperCase()}${difficulty.slice(1)}` : ""
+              }`
+            : connectionStatus}
+        </span>
       </div>
 
-      <div className="mb-3 flex w-full max-w-[800px] items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm">
-        <span>{audioStatus}</span>
-        <button
-          className="shrink-0 rounded-md border border-zinc-500 px-3 py-1 disabled:opacity-50"
-          disabled={!audioSupported}
-          onClick={toggleAudio}
-        >
-          {audioEnabled ? "Mute Mic" : "Unmute Mic"}
-        </button>
-      </div>
+      {!isComputerMatch && (
+        <div className="mb-3 flex w-full max-w-[800px] items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm">
+          <span>{audioStatus}</span>
+          <button
+            className="shrink-0 rounded-md border border-zinc-500 px-3 py-1 disabled:opacity-50"
+            disabled={!audioSupported}
+            onClick={toggleAudio}
+          >
+            {audioEnabled ? "Mute Mic" : "Unmute Mic"}
+          </button>
+        </div>
+      )}
 
       <canvas
         ref={canvasRef}
@@ -606,7 +643,7 @@ export default function GameCanvas({ roomCode, roomAction, playerName }) {
         height={400}
         className="block aspect-[2/1] w-full max-w-[800px] rounded-xl border border-zinc-700 bg-zinc-800"
       />
-      <audio ref={remoteAudioRef} autoPlay playsInline />
+      {!isComputerMatch && <audio ref={remoteAudioRef} autoPlay playsInline />}
 
       <div className="mt-4 grid w-full max-w-[800px] grid-cols-4 gap-3 sm:hidden">
         <button className={controlButtonClass} {...bindMovementButton("left")}>

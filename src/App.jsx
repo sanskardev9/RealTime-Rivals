@@ -11,6 +11,8 @@ export default function App() {
         <Lobby onStart={setSession} />
       ) : (
         <GameCanvas
+          difficulty={session.difficulty}
+          matchType={session.matchType}
           playerName={session.playerName}
           roomAction={session.roomAction}
           roomCode={session.roomCode}
