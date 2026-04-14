@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 const ROOM_CODE_LENGTH = 6;
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PLAYER_NAME_STORAGE_KEY = "realtime-rivals-player-name";
+const SESSION_PLAYER_NAME_STORAGE_KEY = "realtime-rivals-session-player-name";
 
 const generateRoomCode = () =>
   Array.from({ length: ROOM_CODE_LENGTH }, () => {
@@ -18,6 +19,14 @@ export default function Lobby({ onStart }) {
       return "";
     }
 
+    const sessionPlayerName = window.sessionStorage.getItem(
+      SESSION_PLAYER_NAME_STORAGE_KEY
+    );
+
+    if (sessionPlayerName) {
+      return sessionPlayerName;
+    }
+
     return window.localStorage.getItem(PLAYER_NAME_STORAGE_KEY) ?? "";
   });
   const nextRoomCode = useMemo(() => generateRoomCode(), []);
@@ -26,14 +35,23 @@ export default function Lobby({ onStart }) {
 
   const startSession = ({
     difficulty = null,
+    forceTutorial = false,
     matchType = "online",
     roomAction,
     roomCode,
   }) => {
+    const isNewUser =
+      window.sessionStorage.getItem(SESSION_PLAYER_NAME_STORAGE_KEY) === null;
+
     window.localStorage.setItem(PLAYER_NAME_STORAGE_KEY, normalizedPlayerName);
+    window.sessionStorage.setItem(
+      SESSION_PLAYER_NAME_STORAGE_KEY,
+      normalizedPlayerName
+    );
 
     onStart({
       difficulty,
+      showTutorialOnStart: forceTutorial || isNewUser,
       matchType,
       playerName: normalizedPlayerName,
       roomAction,
@@ -139,6 +157,30 @@ export default function Lobby({ onStart }) {
             }
           >
             Fight Computer
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Tutorial</p>
+          <p className="mt-2 text-sm text-zinc-400">
+            Learn movement, attacks, beam, rematch flow, and voice chat before the
+            match begins.
+          </p>
+
+          <button
+            className="mt-4 w-full rounded-lg bg-white px-4 py-3 font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!normalizedPlayerName}
+            onClick={() =>
+              startSession({
+                difficulty: "easy",
+                forceTutorial: true,
+                matchType: "computer",
+                roomAction: "computer",
+                roomCode: "TUTORIAL",
+              })
+            }
+          >
+            Open Tutorial
           </button>
         </div>
       </div>
