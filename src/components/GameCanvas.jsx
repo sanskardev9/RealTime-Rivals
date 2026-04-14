@@ -1073,7 +1073,7 @@ export default function GameCanvas({
   }, [gameStatus]);
 
   return (
-    <div className="relative flex h-[100svh] w-full flex-col items-center justify-start overflow-hidden bg-black px-3 py-3 text-white sm:min-h-screen sm:px-4 sm:py-6">
+    <div className="relative flex h-[100svh] w-full flex-col items-center justify-start overflow-hidden bg-black px-3 py-3 text-white sm:h-auto sm:min-h-screen sm:justify-center sm:overflow-visible sm:px-4 sm:py-6">
       <div className="mb-2 grid w-full max-w-[800px] grid-cols-[1fr_auto_auto] items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-xs shadow-[0_18px_50px_rgba(0,0,0,0.38)] sm:mb-3 sm:gap-3 sm:px-4 sm:py-3 sm:text-sm">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Room</p>
