@@ -1346,8 +1346,8 @@ export default function GameCanvas({
 
       {showTutorial && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/82 px-3 py-3 backdrop-blur-sm sm:px-4 sm:py-6">
-          <div className="w-full max-w-2xl rounded-[28px] border border-cyan-500/30 bg-[linear-gradient(145deg,rgba(16,24,40,0.98),rgba(10,10,10,0.98))] p-4 shadow-[0_25px_80px_rgba(8,145,178,0.18)] sm:p-6">
-            <div className="flex items-start justify-between gap-3 sm:gap-4">
+          <div className="flex max-h-[calc(100svh-24px)] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-cyan-500/30 bg-[linear-gradient(145deg,rgba(16,24,40,0.98),rgba(10,10,10,0.98))] shadow-[0_25px_80px_rgba(8,145,178,0.18)]">
+            <div className="flex items-start justify-between gap-3 border-b border-white/5 px-4 pb-3 pt-4 sm:gap-4 sm:px-6 sm:pb-4 sm:pt-6">
               <div>
                 <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80">Tutorial Mode</p>
                 <h2 className="mt-2 text-xl font-bold text-white sm:text-3xl">
@@ -1367,31 +1367,33 @@ export default function GameCanvas({
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-4">
-              {tutorialCards.map((card) => (
-                <div
-                  key={card.label}
-                  className={`rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3 sm:p-4 ${
-                    card.label === "Voice Chat" ? "col-span-2" : ""
-                  }`}
-                >
-                  <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{card.label}</p>
-                  <p className="mt-2 text-sm font-semibold text-white sm:mt-3 sm:text-lg">
-                    {card.value}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-300 sm:mt-2 sm:text-sm sm:leading-6">
-                    {card.body}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                {tutorialCards.map((card) => (
+                  <div
+                    key={card.label}
+                    className={`rounded-2xl border border-zinc-800 bg-zinc-950/80 p-3 sm:p-4 ${
+                      card.label === "Voice Chat" ? "sm:col-span-2" : ""
+                    }`}
+                  >
+                    <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">{card.label}</p>
+                    <p className="mt-2 text-sm font-semibold text-white sm:mt-3 sm:text-lg">
+                      {card.value}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-300 sm:mt-2 sm:text-sm sm:leading-6">
+                      {card.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
 
-            <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-3 text-xs text-amber-50 sm:mt-6 sm:p-4 sm:text-sm">
-              <p className="font-semibold uppercase tracking-[0.25em] text-amber-200">Rematch Flow</p>
-              <p className="mt-2 leading-5 sm:leading-6">
-                After the fight, press `Restart` to request a rematch. If the other player
-                accepts, both of you stay in the same room and the next round starts after `3, 2, 1`.
-              </p>
+              <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-3 text-xs text-amber-50 sm:mt-6 sm:p-4 sm:text-sm">
+                <p className="font-semibold uppercase tracking-[0.25em] text-amber-200">Rematch Flow</p>
+                <p className="mt-2 leading-5 sm:leading-6">
+                  After the fight, press `Restart` to request a rematch. If the other player
+                  accepts, both of you stay in the same room and the next round starts after `3, 2, 1`.
+                </p>
+              </div>
             </div>
           </div>
         </div>
