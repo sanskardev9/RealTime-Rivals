@@ -285,7 +285,7 @@ export const useWebRTC = (roomCode, roomAction, onData, options = {}) => {
 
         if (message.type === "joined") {
           setPlayerNumber(message.playerNumber);
-          setConnectionStatus(`Joined room ${message.room}. Waiting for opponent...`);
+          setConnectionStatus(`Joined room ${message.room}. Waiting for opp...`);
         }
 
         if (message.type === "ready") {
