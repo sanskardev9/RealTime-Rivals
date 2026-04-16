@@ -154,14 +154,6 @@ The app includes public STUN/TURN server configuration in `src/hooks/useWebRTC.j
 
 ## Configuration Notes
 
-### Allowed Vite Host
-
-`vite.config.js` currently allows this host for development access:
-
-```text
-5f46-110-235-232-160.ngrok-free.app
-```
-
 If you use a different tunnel, domain, or local network setup, update `server.allowedHosts`.
 
 ### Persistent Player Name

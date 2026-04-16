@@ -1366,9 +1366,9 @@ export default function GameCanvas({
                 Ready
               </button>
             </div>
-
+ 
             <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4"> 
                 {tutorialCards.map((card) => (
                   <div
                     key={card.label}
