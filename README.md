@@ -4,6 +4,12 @@ Real Time Rivals is a fast 1v1 browser fighting game built with React, Vite, Tai
 
 The project is frontend-first and keeps the gameplay loop intentionally simple: move, punch, build charge, and unleash a beam attack. Online matches use peer-to-peer data sync for gameplay events and optional voice chat for live communication between players.
 
+## 🎥 Demo
+
+👉 Watch the gameplay in action:
+
+[![Watch Demo](https://img.youtube.com/vi/ph4oxrqVMrw/0.jpg)](https://youtu.be/ph4oxrqVMrw)
+
 ## Highlights
 
 - Private online rooms with short shareable room codes
