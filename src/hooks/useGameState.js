@@ -55,7 +55,7 @@ const BOT_PROFILES = {
 };
 
 export const useGameState = (isHost, options = {}) => {
-  const { difficulty = "medium", opponentMode = "remote" } = options;
+  const { difficulty = "medium", opponentMode = "remote", paused = false } = options;
   const isComputerOpponent = opponentMode === "computer";
   const [player, setPlayer] = useState(createInitialPlayerState);
   const [opponent, setOpponent] = useState(createInitialOpponentState);
@@ -65,6 +65,8 @@ export const useGameState = (isHost, options = {}) => {
   const opponentAttackTimeoutRef = useRef(null);
   const playerRef = useRef(createInitialPlayerState());
   const opponentRef = useRef(createInitialOpponentState());
+  const gameStatusRef = useRef("playing");
+  const pausedRef = useRef(paused);
 
   useEffect(() => {
     playerRef.current = player;
@@ -73,6 +75,14 @@ export const useGameState = (isHost, options = {}) => {
   useEffect(() => {
     opponentRef.current = opponent;
   }, [opponent]);
+
+  useEffect(() => {
+    gameStatusRef.current = gameStatus;
+  }, [gameStatus]);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   useEffect(() => {
     return () => {
@@ -128,6 +138,10 @@ export const useGameState = (isHost, options = {}) => {
   };
 
   const runOpponentInput = (input, { invertMovement = false } = {}) => {
+    if (pausedRef.current || gameStatusRef.current !== "playing") {
+      return;
+    }
+
     if (input === "attack") {
       const attackingOpponent = startAttack(opponentRef.current);
       const { damagedDefender, didLandHit } = resolveDamage(
@@ -168,6 +182,10 @@ export const useGameState = (isHost, options = {}) => {
   };
 
   const updatePlayer = (input) => {
+    if (pausedRef.current || gameStatusRef.current !== "playing") {
+      return;
+    }
+
     if (input === "attack") {
       const attackingPlayer = startAttack(playerRef.current);
 
@@ -250,7 +268,7 @@ export const useGameState = (isHost, options = {}) => {
   };
 
   useEffect(() => {
-    if (!isComputerOpponent || !isHost || gameStatus !== "playing") {
+    if (!isComputerOpponent || !isHost || gameStatus !== "playing" || paused) {
       return undefined;
     }
 
@@ -301,7 +319,7 @@ export const useGameState = (isHost, options = {}) => {
     }, botProfile.tickMs);
 
     return () => window.clearInterval(intervalId);
-  }, [difficulty, gameStatus, isComputerOpponent, isHost]);
+  }, [difficulty, gameStatus, isComputerOpponent, isHost, paused]);
 
   return {
     player,

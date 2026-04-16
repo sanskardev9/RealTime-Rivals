@@ -82,6 +82,24 @@ src/
 npm install
 ```
 
+### Environment Variables
+
+Create a local env file from the example:
+
+```bash
+cp .env.example .env
+```
+
+Available variables:
+
+- `VITE_SIGNALING_URL`: WebSocket or HTTP(S) base URL for the signaling backend. The app normalizes it to the correct `ws:` or `wss:` protocol and appends the room query params automatically.
+
+Example:
+
+```env
+VITE_SIGNALING_URL=wss://realtimerivals-backend.onrender.com/ws
+```
+
 ### Start The Dev Server
 
 ```bash
@@ -117,13 +135,19 @@ Online play uses two layers:
    - a data channel carries player inputs, state sync, tutorial status, profile info, and rematch messages
    - an audio track enables voice chat between players
 
-The current frontend defaults to this signaling endpoint:
+The signaling endpoint is configured through the Vite environment:
+
+```text
+VITE_SIGNALING_URL
+```
+
+By default, the included `.env` and `.env.example` point to:
 
 ```text
 wss://realtimerivals-backend.onrender.com/ws
 ```
 
-That URL is currently defined in `src/hooks/useWebRTC.js`.
+The frontend reads this value in `src/hooks/useWebRTC.js`.
 
 Room joins are parameterized with:
 
@@ -174,14 +198,12 @@ The lobby stores the player's name in browser storage:
 
 ## Current Limitations
 
-- The signaling backend URL is hardcoded rather than environment-driven
 - There is no automated test suite yet
 - Match sync is intentionally lightweight and not server-authoritative
 - Voice chat depends on browser permissions and network support
 
 ## Future Improvements
 
-- Move signaling configuration into environment variables
 - Add automated tests for game rules and React flows
 - Add touch-first polish for mobile matchmaking and HUD interactions
 - Improve rollback/reconciliation for multiplayer edge cases
