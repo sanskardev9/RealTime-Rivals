@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-const DEFAULT_SIGNALING_URL = "wss://realtimerivals-backend.onrender.com/ws";
+const DEFAULT_SIGNALING_URL =
+  import.meta.env.VITE_SIGNALING_URL ?? "wss://realtimerivals-backend.onrender.com/ws";
 
 const getSignalingUrl = (roomCode, roomAction) => {
   const rawUrl = DEFAULT_SIGNALING_URL;

@@ -390,6 +390,7 @@ export default function GameCanvas({
   );
 
   const isTutorialBlocking = showTutorial || opponentTutorialOpen;
+  const isMatchLocked = countdownValue !== null || isTutorialBlocking;
 
   const {
     audioEnabled,
@@ -465,6 +466,7 @@ export default function GameCanvas({
   } = useGameState(isHost, {
     difficulty,
     opponentMode: isComputerMatch ? "computer" : "remote",
+    paused: isMatchLocked,
   });
 
   const clearCountdown = () => {
@@ -756,7 +758,7 @@ export default function GameCanvas({
   }, [gameStatus, isComputerMatch, isHost, opponent, opponentName, player, playerName, sendData]);
 
   const handleInput = (input) => {
-    if (gameStatus !== "playing" || countdownValue !== null || isTutorialBlocking) return;
+    if (gameStatus !== "playing" || isMatchLocked) return;
 
     if (isComputerMatch || isHost) {
       updatePlayer(input);
@@ -788,8 +790,7 @@ export default function GameCanvas({
   const startTouchMovement = (direction) => {
     if (
       gameStatus !== "playing" ||
-      countdownValue !== null ||
-      isTutorialBlocking ||
+      isMatchLocked ||
       !playerRef.current
     ) {
       return;
@@ -798,7 +799,7 @@ export default function GameCanvas({
     clearInterval(touchMoveIntervalRef.current);
     handleInput(direction);
     touchMoveIntervalRef.current = setInterval(() => {
-      if (playerRef.current && gameStatus === "playing" && countdownValue === null) {
+      if (playerRef.current && gameStatus === "playing" && !isMatchLocked) {
         handleInput(direction);
       }
     }, INPUT_REPEAT_MS);
