@@ -3,11 +3,49 @@ import { useGameState } from "../hooks/useGameState";
 import { useControls } from "../hooks/useControls";
 import { useWebRTC } from "../hooks/useWebRTC";
 import { getAttackBoxWidth, getAttackBoxX } from "../game/collision";
-import { INPUT_REPEAT_MS, PLAYER_WIDTH, SPECIAL_HIT_TARGET } from "../game/player";
+import {
+  ATTACK_DURATION,
+  BEAM_DAMAGE,
+  INPUT_REPEAT_MS,
+  MAX_HEALTH,
+  PLAYER_WIDTH,
+  SPECIAL_HIT_TARGET,
+  THROW_DURATION,
+  THROW_STUN_MS,
+} from "../game/player";
 import HealthBar from "./HealthBar";
 
 const ARENA_HEIGHT = 400;
 const FLOOR_Y = 350;
+
+const isTargetInFront = (attacker, defender) => {
+  const attackerCenter = attacker.x + PLAYER_WIDTH / 2;
+  const defenderCenter = defender.x + PLAYER_WIDTH / 2;
+  return attacker.direction === "left"
+    ? defenderCenter < attackerCenter
+    : defenderCenter > attackerCenter;
+};
+
+const createBloodBurst = (target, tint, count = 10) => {
+  const centerX = target.x + PLAYER_WIDTH / 2;
+  const centerY = FLOOR_Y - 40;
+  const particles = [];
+
+  for (let index = 0; index < count; index += 1) {
+    particles.push({
+      x: centerX + (Math.random() * 12 - 6),
+      y: centerY + (Math.random() * 10 - 5),
+      vx: (Math.random() * 2.8 - 1.4) + (target.direction === "left" ? -0.6 : 0.6),
+      vy: -(Math.random() * 2.2 + 0.8),
+      radius: 1.8 + Math.random() * 2.4,
+      life: 30 + Math.floor(Math.random() * 20),
+      tint,
+      floorHit: false,
+    });
+  }
+
+  return particles;
+};
 
 const ChargeMeter = ({ align = "left", charge, ready, tint }) => {
   const chargePercent = Math.max(0, Math.min(100, (charge / SPECIAL_HIT_TARGET) * 100));
@@ -114,6 +152,9 @@ const drawShadow = (ctx, player, intensity = 0.18, pose = "normal") => {
   if (pose === "celebrate") {
     intensity = 0.12;
   }
+  if (pose === "thrown") {
+    intensity = 0.1;
+  }
 
   ctx.save();
   ctx.fillStyle = `rgba(0, 0, 0, ${intensity})`;
@@ -121,8 +162,8 @@ const drawShadow = (ctx, player, intensity = 0.18, pose = "normal") => {
   ctx.ellipse(
     player.x + PLAYER_WIDTH / 2,
     FLOOR_Y + 8,
-    pose === "down" ? 34 : 28,
-    pose === "down" ? 10 : 8,
+    pose === "down" ? 34 : pose === "thrown" ? 18 : 28,
+    pose === "down" ? 10 : pose === "thrown" ? 6 : 8,
     0,
     0,
     Math.PI * 2
@@ -131,59 +172,202 @@ const drawShadow = (ctx, player, intensity = 0.18, pose = "normal") => {
   ctx.restore();
 };
 
+const drawChargeCannon = (ctx, palette, time) => {
+  const recoil = Math.sin(time / 28) * 1.5;
+  const pulse = 0.65 + (Math.sin(time / 42) + 1) * 0.18;
+  const plasma = palette.weapon;
+  const plasmaLight = palette.weaponGlow;
+
+  ctx.save();
+  ctx.translate(2, -7 + recoil);
+
+  // Metallic receiver and barrel housing.
+  const metal = ctx.createLinearGradient(-24, -18, 62, 18);
+  metal.addColorStop(0, "#090d18");
+  metal.addColorStop(0.34, "#6b7280");
+  metal.addColorStop(0.5, "#d1d5db");
+  metal.addColorStop(0.7, "#374151");
+  metal.addColorStop(1, "#080b14");
+  ctx.fillStyle = metal;
+  ctx.beginPath();
+  ctx.roundRect(-24, -10, 79, 22, 8);
+  ctx.fill();
+  ctx.strokeStyle = "#020617";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Glass plasma chamber, inspired by the reference weapon's exposed energy cell.
+  ctx.fillStyle = "#111827";
+  ctx.beginPath();
+  ctx.roundRect(-6, -16, 34, 21, 6);
+  ctx.fill();
+  ctx.strokeStyle = "#e5e7eb";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  const chamber = ctx.createLinearGradient(-3, -13, 25, 2);
+  chamber.addColorStop(0, "#581c87");
+  chamber.addColorStop(0.45, plasma);
+  chamber.addColorStop(0.7, plasmaLight);
+  chamber.addColorStop(1, "#581c87");
+  ctx.fillStyle = chamber;
+  ctx.globalAlpha = pulse;
+  ctx.beginPath();
+  ctx.roundRect(-2, -12, 25, 13, 4);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "rgba(255,255,255,0.82)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(1, -5);
+  ctx.lineTo(20, -5 + Math.sin(time / 30) * 2);
+  ctx.stroke();
+
+  // Energy coils wrapped around the barrel.
+  ctx.strokeStyle = plasma;
+  ctx.shadowColor = plasma;
+  ctx.shadowBlur = 12;
+  ctx.lineWidth = 3;
+  for (let coil = 0; coil < 5; coil += 1) {
+    const coilX = 29 + coil * 5;
+    ctx.beginPath();
+    ctx.ellipse(coilX, 1, 3.3, 13, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // Top rail, rear stock, and a pistol grip make the cannon feel held rather than floating.
+  ctx.fillStyle = "#111827";
+  ctx.beginPath();
+  ctx.roundRect(-18, -21, 34, 5, 2);
+  ctx.fill();
+  ctx.fillStyle = "#030712";
+  ctx.beginPath();
+  ctx.roundRect(-34, 0, 16, 10, 3);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(4, 8, 10, 20, 3);
+  ctx.fill();
+  ctx.fillStyle = plasma;
+  ctx.globalAlpha = pulse;
+  ctx.fillRect(7, 12, 3, 11);
+  ctx.globalAlpha = 1;
+
+  // Oversized glowing muzzle and emitter ring.
+  ctx.fillStyle = "#030712";
+  ctx.beginPath();
+  ctx.arc(58, 1, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#9ca3af";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.strokeStyle = plasma;
+  ctx.shadowColor = plasma;
+  ctx.shadowBlur = 18;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(58, 1, 8, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = plasmaLight;
+  ctx.globalAlpha = pulse;
+  ctx.beginPath();
+  ctx.arc(58, 1, 4.5 + Math.sin(time / 35), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+};
+
 const drawFighter = (ctx, player, palette, time, pose = "normal") => {
   const facing = player.direction === "left" ? -1 : 1;
-  const centerX = player.x + PLAYER_WIDTH / 2;
-  const centerY = FLOOR_Y - 38;
+  const centerX = (player.renderX ?? player.x) + PLAYER_WIDTH / 2;
+  // The sole line is y=50 in local space, so anchor it exactly to FLOOR_Y.
+  const centerY = FLOOR_Y - 50;
   const idleSwing = Math.sin(time / 120) * 1.5;
   const isDown = pose === "down";
+  const isThrown = pose === "thrown";
   const isCelebrating = pose === "celebrate";
-  const isPunching = !isDown && !isCelebrating && (player.isAttacking || player.isSpecialAttacking);
+  const isGunAttacking = player.isAttacking && player.attackWeapon === "gun";
+  const isThrowing = player.isThrowing && !isDown && !isCelebrating;
+  const isPunching = !isDown && !isCelebrating && (player.isAttacking || player.isSpecialAttacking || player.isThrowing);
+  const isWalking = Boolean(player.isWalking) && !isPunching && !isDown && !isThrown && !isCelebrating;
+  const walkCycle = player.walkCycle ?? 0;
   const torsoLean = isCelebrating
     ? 0
+    : isThrowing
+      ? 22
     : player.isSpecialAttacking
-      ? 14
+      ? 2
       : player.isAttacking
         ? 8
         : 2;
   const leadFistX = isCelebrating
     ? 12
+    : isThrowing
+      ? 32
     : player.isSpecialAttacking
-      ? 40
+      ? 36
       : player.isAttacking
         ? 28
         : 12;
   const leadFistY = isCelebrating
     ? -34
+    : isThrowing
+      ? -8
     : player.isSpecialAttacking
-      ? -2
+      ? 4
       : player.isAttacking
         ? 2
         : 10;
-  const rearFistX = isCelebrating ? -12 : player.isSpecialAttacking ? -6 : -10;
-  const rearFistY = isCelebrating ? -36 : player.isSpecialAttacking ? 10 : 4;
+  const rearFistX = isCelebrating ? -12 : isThrowing ? 22 : player.isSpecialAttacking ? 16 : -10;
+  const rearFistY = isCelebrating ? -36 : isThrowing ? -10 : player.isSpecialAttacking ? 9 : 4;
   const kneeBend = isDown ? 10 : isPunching ? 4 : 0;
+  const stride = isWalking ? Math.sin(walkCycle) * 10 : 0;
+  const rearStride = isWalking ? -stride : 0;
 
   ctx.save();
-  ctx.translate(centerX, centerY + (isDown ? 40 : idleSwing));
+  ctx.translate(
+    centerX,
+    centerY + (isDown ? 40 : isThrown ? -42 : idleSwing) + (player.renderYOffset ?? 0)
+  );
   ctx.scale(isCelebrating ? 1 : facing, 1);
 
   if (isDown) {
     ctx.rotate(Math.PI / 2.35);
+  } else if (isThrown) {
+    ctx.rotate(-Math.PI / 1.35 + Math.sin(time / 65) * 0.25);
+  }
+
+  if (!isDown && player.renderRotation) {
+    ctx.rotate(player.renderRotation);
   }
 
   ctx.rotate((-torsoLean * Math.PI) / 180);
 
+  // Two-joint legs with feet locked on the floor: the old one-line legs made the
+  // fighters look as if they were hovering.
+  const drawLeg = (hipX, footX, kneeOffset) => {
+    const kneeX = (hipX + footX) / 2 + kneeOffset;
+    const kneeY = isWalking ? 39 - Math.abs(footX) * 0.12 : 39 + kneeBend;
+    ctx.beginPath();
+    ctx.moveTo(hipX, 25);
+    ctx.lineTo(kneeX, kneeY);
+    ctx.lineTo(footX, 50);
+    ctx.stroke();
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(footX - 3, 50);
+    ctx.lineTo(footX + 7, 50);
+    ctx.stroke();
+    ctx.lineWidth = 6;
+  };
+
   ctx.strokeStyle = palette.limb;
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
+  drawLeg(-8, isDown ? -2 : -12 + rearStride, isDown ? 0 : -4);
+  drawLeg(8, isDown ? 18 : 12 + stride, isDown ? 0 : 4);
 
-  ctx.beginPath();
-  ctx.moveTo(-8, 26);
-  ctx.lineTo(isDown ? -2 : -14, 46 + kneeBend);
-  ctx.moveTo(8, 26);
-  ctx.lineTo(isDown ? 18 : 14, 50 - kneeBend);
-  ctx.stroke();
+  if (player.isSpecialAttacking && !isDown && !isCelebrating) {
+    drawChargeCannon(ctx, palette, time);
+  }
 
   ctx.beginPath();
   ctx.moveTo(0, -6);
@@ -202,6 +386,14 @@ const drawFighter = (ctx, player, palette, time, pose = "normal") => {
   ctx.arc(leadFistX, leadFistY, player.isSpecialAttacking && !isCelebrating ? 7 : 5, 0, Math.PI * 2);
   ctx.arc(rearFistX, rearFistY, 4.5, 0, Math.PI * 2);
   ctx.fill();
+
+  if (isGunAttacking && !isDown && !isCelebrating) {
+    ctx.fillStyle = "#111827";
+    ctx.beginPath();
+    ctx.roundRect(leadFistX - 2, leadFistY - 4, 20, 8, 3);
+    ctx.fill();
+    ctx.fillRect(leadFistX + 2, leadFistY + 3, 5, 8);
+  }
 
   ctx.fillStyle = palette.body;
   ctx.beginPath();
@@ -233,6 +425,14 @@ const drawFighter = (ctx, player, palette, time, pose = "normal") => {
     ctx.fill();
   }
 
+  if (isThrowing) {
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(22, 2, 16, Math.PI * 0.1, Math.PI * 1.35);
+    ctx.stroke();
+  }
+
   ctx.restore();
 };
 
@@ -254,17 +454,87 @@ const drawAttackSlash = (ctx, player, color) => {
   ctx.restore();
 };
 
-const drawBeam = (ctx, player, beamColor, coreColor, time) => {
+const drawGunShot = (ctx, player, target, color, nowMs) => {
   const width = getAttackBoxWidth(player);
   const x = getAttackBoxX(player);
-  const y = FLOOR_Y - 52;
-  const beamHeight = 36 + Math.sin(time / 40) * 4;
+  // Match the projectile to the small pistol's muzzle (the old line was near
+  // the fighter's waist, making bullets appear below the weapon).
+  const y = FLOOR_Y - 60;
+  const movingLeft = player.direction === "left";
+  const startX = movingLeft ? x + width : x;
+  let endX = movingLeft ? x : x + width;
+  const canHitTarget = target && isTargetInFront(player, target);
+
+  if (canHitTarget) {
+    endX = target.x + PLAYER_WIDTH / 2;
+  }
+
+  const startedAt = player.attackStartedAt ?? nowMs;
+  const progress = Math.max(0, Math.min(1, (nowMs - startedAt) / ATTACK_DURATION));
+  const bulletX = startX + (endX - startX) * progress;
+  const tailDirection = movingLeft ? 1 : -1;
+  const tailLength = 26;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([7, 5]);
+  ctx.beginPath();
+  ctx.moveTo(startX, y + 10);
+  ctx.lineTo(endX, y + 10);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = "rgba(255, 251, 220, 0.52)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(startX, y + 10);
+  ctx.lineTo(bulletX, y + 10);
+  ctx.stroke();
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 4;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.moveTo(bulletX + tailLength * tailDirection, y + 10);
+  ctx.lineTo(bulletX, y + 10);
+  ctx.stroke();
+
+  ctx.fillStyle = "#fffde7";
+  ctx.beginPath();
+  ctx.arc(bulletX, y + 10, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 240, 170, 0.9)";
+  ctx.beginPath();
+  ctx.arc(startX, y + 10, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+};
+
+const drawBeam = (ctx, player, beamColor, coreColor, time) => {
+  const direction = player.direction === "left" ? -1 : 1;
+  // Match the charge cannon's transformed muzzle: local x=58, 2px cannon
+  // offset, and a 13px emitter ring. This is deliberately separate from the
+  // collision box, whose start is the fighter edge rather than the gun tip.
+  const muzzleX = Math.max(
+    0,
+    Math.min(800, player.x + PLAYER_WIDTH / 2 + direction * 73)
+  );
+  const beamEndX = Math.max(0, Math.min(800, muzzleX + direction * 180));
+  const x = Math.min(muzzleX, beamEndX);
+  const width = Math.abs(beamEndX - muzzleX);
+  const beamHeight = 18 + Math.sin(time / 40) * 2;
+  const muzzleY = FLOOR_Y - 57;
+  const y = muzzleY - beamHeight / 2;
 
   ctx.save();
   ctx.shadowColor = beamColor;
   ctx.shadowBlur = 26;
 
-  const beamGradient = ctx.createLinearGradient(x, 0, x + width, 0);
+  const beamGradient = ctx.createLinearGradient(muzzleX, 0, beamEndX, 0);
   beamGradient.addColorStop(0, "rgba(255,255,255,0.08)");
   beamGradient.addColorStop(0.2, beamColor);
   beamGradient.addColorStop(0.6, coreColor);
@@ -288,6 +558,34 @@ const drawBeam = (ctx, player, beamColor, coreColor, time) => {
     ctx.fill();
   }
 
+  // Hide the join with a bright muzzle flare so the beam visibly originates
+  // inside the cannon's emitter ring.
+  ctx.fillStyle = coreColor;
+  ctx.beginPath();
+  ctx.arc(muzzleX, muzzleY, 5 + Math.sin(time / 32), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+};
+
+const drawThrowImpact = (ctx, thrower, color, time) => {
+  const movingLeft = thrower.direction === "left";
+  const impactX = thrower.x + PLAYER_WIDTH / 2 + (movingLeft ? -34 : 34);
+  const impactY = FLOOR_Y - 8;
+  const ring = 12 + (Math.sin(time / 80) + 1) * 5;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  ctx.arc(impactX, impactY, ring, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.arc(impactX, impactY, ring + 11, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
 };
 
@@ -358,6 +656,11 @@ export default function GameCanvas({
     player: 0,
     ties: 0,
   });
+  const bloodParticlesRef = useRef([]);
+  const bloodStainsRef = useRef([]);
+  const fighterMotionRef = useRef({});
+  const previousPlayerHealthRef = useRef(MAX_HEALTH);
+  const previousOpponentHealthRef = useRef(MAX_HEALTH);
   const tutorialCards = useMemo(
     () => [
       {
@@ -368,12 +671,17 @@ export default function GameCanvas({
       {
         label: "Attack",
         value: "Space or mobile Attack",
-        body: "Quick close-range hit. Great for pressure and building charge.",
+        body: "Quick gun shot. Great for pressure and building charge.",
       },
       {
         label: "Beam",
         value: "Q or mobile Beam",
         body: "Your special attack unlocks once the charge meter is full.",
+      },
+      {
+        label: "Throw",
+        value: "E or mobile Throw",
+        body: "Close-range takedown that hits hard. Best used when you step into your opponent.",
       },
       {
         label: "Rematch",
@@ -787,6 +1095,10 @@ export default function GameCanvas({
     handleInput("specialAttack");
   };
 
+  const handleTouchThrow = () => {
+    handleInput("throw");
+  };
+
   const startTouchMovement = (direction) => {
     if (
       gameStatus !== "playing" ||
@@ -988,23 +1300,77 @@ export default function GameCanvas({
   }, [countdownValue, opponent.health, player.health, rematchState]);
 
   useEffect(() => {
+    if (player.health < previousPlayerHealthRef.current) {
+      bloodParticlesRef.current.push(...createBloodBurst(player, "rgba(220, 38, 38, 0.82)", 18));
+    }
+
+    if (opponent.health < previousOpponentHealthRef.current) {
+      bloodParticlesRef.current.push(...createBloodBurst(opponent, "rgba(185, 28, 28, 0.82)", 18));
+    }
+
+    previousPlayerHealthRef.current = player.health;
+    previousOpponentHealthRef.current = opponent.health;
+  }, [opponent, player]);
+
+  useEffect(() => {
+    if (gameStatus === "playing" && player.health === MAX_HEALTH && opponent.health === MAX_HEALTH) {
+      bloodParticlesRef.current = [];
+      bloodStainsRef.current = [];
+    }
+  }, [gameStatus, opponent.health, player.health]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
     const ctx = canvas.getContext("2d");
     let animationFrameId;
+    let previousFrameTime = 0;
+
+    const getFighterMotion = (key, fighter, time) => {
+      const previous = fighterMotionRef.current[key] ?? {
+        lastX: fighter.x,
+        speed: 0,
+        walkCycle: 0,
+      };
+      const frameMs = previousFrameTime ? Math.min(50, time - previousFrameTime) : 16;
+      const distanceMoved = Math.abs(fighter.x - previous.lastX);
+      const speed = distanceMoved > 0.05
+        ? Math.min(1, distanceMoved / 3.5)
+        : Math.max(0, previous.speed - frameMs / 150);
+      const next = {
+        lastX: fighter.x,
+        speed,
+        walkCycle: previous.walkCycle + frameMs * (0.007 + speed * 0.024),
+      };
+      fighterMotionRef.current[key] = next;
+
+      return {
+        isWalking: speed > 0.08,
+        walkCycle: next.walkCycle,
+      };
+    };
 
     const loop = (time = 0) => {
       const pulse = (Math.sin(time / 700) + 1) / 2;
+      const now = Date.now();
 
       const currentPlayer = playerRef.current;
       const currentOpponent = opponentRef.current;
 
       if (!currentPlayer || !currentOpponent) return;
 
+      const playerMotion = getFighterMotion("player", currentPlayer, time);
+      const opponentMotion = getFighterMotion("opponent", currentOpponent, time);
+      previousFrameTime = time;
+
       const playerPose =
         currentPlayer.health <= 0 && currentOpponent.health <= 0
           ? "down"
+          : currentPlayer.throwStunUntil > now
+            ? currentPlayer.throwStunUntil - now > THROW_STUN_MS * 0.42
+              ? "thrown"
+              : "down"
           : currentPlayer.health <= 0
             ? "down"
             : currentOpponent.health <= 0
@@ -1013,6 +1379,10 @@ export default function GameCanvas({
       const opponentPose =
         currentPlayer.health <= 0 && currentOpponent.health <= 0
           ? "down"
+          : currentOpponent.throwStunUntil > now
+            ? currentOpponent.throwStunUntil - now > THROW_STUN_MS * 0.42
+              ? "thrown"
+              : "down"
           : currentOpponent.health <= 0
             ? "down"
             : currentPlayer.health <= 0
@@ -1021,24 +1391,185 @@ export default function GameCanvas({
 
       ctx.clearRect(0, 0, 800, ARENA_HEIGHT);
       drawStage(ctx, pulse);
-      drawShadow(ctx, currentPlayer, 0.18, playerPose);
-      drawShadow(ctx, currentOpponent, 0.18, opponentPose);
+      let renderPlayer = { ...currentPlayer, ...playerMotion };
+      let renderOpponent = { ...currentOpponent, ...opponentMotion };
+      let renderPlayerPose = playerPose;
+      let renderOpponentPose = opponentPose;
+      const lerp = (start, end, t) => start + (end - start) * t;
 
-      if (currentPlayer.isSpecialAttacking && playerPose === "normal") {
-        drawBeam(ctx, currentPlayer, "#a855f7", "#e9d5ff", time);
-      } else if (currentPlayer.isAttacking && playerPose === "normal") {
-        drawAttackSlash(ctx, currentPlayer, "#fde047");
+      if (currentPlayer.isThrowing && currentOpponent.throwStunUntil > now) {
+        const throwProgress = Math.max(
+          0,
+          Math.min(1, (now - (currentPlayer.attackStartedAt ?? now)) / THROW_DURATION)
+        );
+        const facingDir = currentPlayer.direction === "left" ? -1 : 1;
+
+        if (throwProgress < 0.18) {
+          const rushT = throwProgress / 0.18;
+          renderPlayer = {
+            ...currentPlayer,
+            renderX: currentPlayer.x + facingDir * lerp(0, 16, rushT),
+            renderYOffset: lerp(0, 8, rushT),
+            renderRotation: facingDir * lerp(0, 0.08, rushT),
+          };
+          renderOpponentPose = "normal";
+        } else if (throwProgress < 0.5) {
+          const carryT = (throwProgress - 0.18) / 0.32;
+          renderPlayer = {
+            ...currentPlayer,
+            renderX: currentPlayer.x + facingDir * lerp(16, 20, carryT),
+            renderYOffset: lerp(8, -2, carryT),
+            renderRotation: facingDir * lerp(0.08, -0.08, carryT),
+          };
+          renderOpponent = {
+            ...currentOpponent,
+            renderX: currentPlayer.x + facingDir * lerp(23, 28, carryT),
+            renderYOffset: lerp(2, -10, carryT),
+            renderRotation: facingDir * lerp(-0.08, -0.28, carryT),
+          };
+          renderOpponentPose = "thrown";
+        } else {
+          const launchT = (throwProgress - 0.5) / 0.5;
+          const travelT = 1 - (1 - launchT) ** 3;
+          renderPlayer = {
+            ...currentPlayer,
+            renderX: currentPlayer.x + facingDir * lerp(20, 8, launchT),
+            renderYOffset: lerp(-2, 3, launchT),
+            renderRotation: facingDir * lerp(-0.08, 0.04, launchT),
+          };
+          renderOpponent = {
+            ...currentOpponent,
+            renderX: lerp(currentPlayer.x + facingDir * 28, currentOpponent.x, travelT),
+            renderYOffset: -Math.sin(launchT * Math.PI) * 92,
+            renderRotation: facingDir * lerp(-0.28, Math.PI * 2.4, launchT),
+          };
+          renderOpponentPose = launchT > 0.88 ? "down" : "thrown";
+        }
+      } else if (currentOpponent.isThrowing && currentPlayer.throwStunUntil > now) {
+        const throwProgress = Math.max(
+          0,
+          Math.min(1, (now - (currentOpponent.attackStartedAt ?? now)) / THROW_DURATION)
+        );
+        const facingDir = currentOpponent.direction === "left" ? -1 : 1;
+
+        if (throwProgress < 0.18) {
+          const rushT = throwProgress / 0.18;
+          renderOpponent = {
+            ...currentOpponent,
+            renderX: currentOpponent.x + facingDir * lerp(0, 16, rushT),
+            renderYOffset: lerp(0, 8, rushT),
+            renderRotation: facingDir * lerp(0, 0.08, rushT),
+          };
+          renderPlayerPose = "normal";
+        } else if (throwProgress < 0.5) {
+          const carryT = (throwProgress - 0.18) / 0.32;
+          renderOpponent = {
+            ...currentOpponent,
+            renderX: currentOpponent.x + facingDir * lerp(16, 20, carryT),
+            renderYOffset: lerp(8, -2, carryT),
+            renderRotation: facingDir * lerp(0.08, -0.08, carryT),
+          };
+          renderPlayer = {
+            ...currentPlayer,
+            renderX: currentOpponent.x + facingDir * lerp(23, 28, carryT),
+            renderYOffset: lerp(2, -10, carryT),
+            renderRotation: facingDir * lerp(-0.08, -0.28, carryT),
+          };
+          renderPlayerPose = "thrown";
+        } else {
+          const launchT = (throwProgress - 0.5) / 0.5;
+          const travelT = 1 - (1 - launchT) ** 3;
+          renderOpponent = {
+            ...currentOpponent,
+            renderX: currentOpponent.x + facingDir * lerp(20, 8, launchT),
+            renderYOffset: lerp(-2, 3, launchT),
+            renderRotation: facingDir * lerp(-0.08, 0.04, launchT),
+          };
+          renderPlayer = {
+            ...currentPlayer,
+            renderX: lerp(currentOpponent.x + facingDir * 28, currentPlayer.x, travelT),
+            renderYOffset: -Math.sin(launchT * Math.PI) * 92,
+            renderRotation: facingDir * lerp(-0.28, Math.PI * 2.4, launchT),
+          };
+          renderPlayerPose = launchT > 0.88 ? "down" : "thrown";
+        }
       }
 
-      if (currentOpponent.isSpecialAttacking && opponentPose === "normal") {
+      drawShadow(ctx, renderPlayer, 0.18, renderPlayerPose);
+      drawShadow(ctx, renderOpponent, 0.18, renderOpponentPose);
+
+      if (currentPlayer.isSpecialAttacking && renderPlayerPose === "normal") {
+        drawBeam(ctx, currentPlayer, "#a855f7", "#e9d5ff", time);
+      } else if (currentPlayer.isThrowing && renderPlayerPose === "normal") {
+        drawThrowImpact(ctx, currentPlayer, "#fca5a5", time);
+      } else if (currentPlayer.isAttacking && renderPlayerPose === "normal") {
+        if (currentPlayer.attackWeapon === "gun") {
+          drawGunShot(ctx, currentPlayer, currentOpponent, "#fde047", now);
+        } else {
+          drawAttackSlash(ctx, currentPlayer, "#fde047");
+        }
+      }
+
+      if (currentOpponent.isSpecialAttacking && renderOpponentPose === "normal") {
         drawBeam(ctx, currentOpponent, "#f97316", "#fdba74", time + 60);
-      } else if (currentOpponent.isAttacking && opponentPose === "normal") {
-        drawAttackSlash(ctx, currentOpponent, "#fb923c");
+      } else if (currentOpponent.isThrowing && renderOpponentPose === "normal") {
+        drawThrowImpact(ctx, currentOpponent, "#fb7185", time + 45);
+      } else if (currentOpponent.isAttacking && renderOpponentPose === "normal") {
+        if (currentOpponent.attackWeapon === "gun") {
+          drawGunShot(ctx, currentOpponent, currentPlayer, "#fb923c", now);
+        } else {
+          drawAttackSlash(ctx, currentOpponent, "#fb923c");
+        }
+      }
+
+      bloodParticlesRef.current = bloodParticlesRef.current
+        .map((particle) => ({
+          ...particle,
+          x: particle.x + particle.vx,
+          y: particle.y + particle.vy,
+          vy: particle.vy + 0.14,
+          life: particle.life - 1,
+          radius: Math.max(0.4, particle.radius * 0.97),
+        }))
+        .filter((particle) => {
+          if (particle.y >= FLOOR_Y - 2 && !particle.floorHit) {
+            particle.floorHit = true;
+            bloodStainsRef.current.push({
+              x: particle.x,
+              y: FLOOR_Y + (Math.random() * 8 - 2),
+              radius: Math.max(2, particle.radius * 2.8),
+              alpha: 0.5 + Math.random() * 0.25,
+              tint: particle.tint,
+            });
+          }
+
+          return particle.life > 0;
+        });
+
+      bloodStainsRef.current = bloodStainsRef.current
+        .map((stain) => ({
+          ...stain,
+          alpha: Math.max(0.1, stain.alpha - 0.0008),
+        }))
+        .slice(-240);
+
+      for (const stain of bloodStainsRef.current) {
+        ctx.fillStyle = stain.tint.replace(/[\d.]+\)$/, `${stain.alpha})`);
+        ctx.beginPath();
+        ctx.ellipse(stain.x, stain.y, stain.radius * 1.7, stain.radius, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (const particle of bloodParticlesRef.current) {
+        ctx.fillStyle = particle.tint;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       drawFighter(
         ctx,
-        currentPlayer,
+        renderPlayer,
         {
           accent: "#93c5fd",
           body: "#1d4ed8",
@@ -1046,13 +1577,15 @@ export default function GameCanvas({
           hair: "#0f172a",
           limb: "#cbd5e1",
           skin: "#f1c27d",
+          weapon: "#2563eb",
+          weaponGlow: "#67e8f9",
         },
         time,
-        playerPose
+        renderPlayerPose
       );
       drawFighter(
         ctx,
-        currentOpponent,
+        renderOpponent,
         {
           accent: "#fdba74",
           body: "#b91c1c",
@@ -1060,9 +1593,11 @@ export default function GameCanvas({
           hair: "#3f1d0f",
           limb: "#fecaca",
           skin: "#e0ac69",
+          weapon: "#dc2626",
+          weaponGlow: "#fbbf24",
         },
         time + 90,
-        opponentPose
+        renderOpponentPose
       );
 
       animationFrameId = requestAnimationFrame(loop);
@@ -1196,8 +1731,8 @@ export default function GameCanvas({
       </div>
 
       <div className="mb-2 flex w-full max-w-[800px] gap-2 sm:mb-3 sm:gap-3">
-        <HealthBar color="blue" health={player.health} label={playerName} />
-        <HealthBar color="red" health={opponent.health} label={opponentName} />
+        <HealthBar color="blue" health={player.health} label={playerName} maxHealth={MAX_HEALTH} />
+        <HealthBar color="red" health={opponent.health} label={opponentName} maxHealth={MAX_HEALTH} />
       </div>
 
       <div className="mb-2 grid w-full max-w-[800px] grid-cols-3 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/90 px-3 py-2 text-xs sm:mb-3 sm:gap-3 sm:px-4 sm:py-3 sm:text-sm">
@@ -1222,7 +1757,11 @@ export default function GameCanvas({
       <div className="mb-2 grid w-full max-w-[800px] grid-cols-2 gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs sm:mb-3 sm:gap-3 sm:px-4 sm:py-3 sm:text-sm">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Your Charge</p>
-          <p>{player.specialReady ? "Long-range attack ready" : "Charging beam..."}</p>
+          <p>
+            {player.specialReady
+              ? `Beam ready`
+              : `${player.hitCount}/${SPECIAL_HIT_TARGET} bullet hits`}
+          </p>
           <ChargeMeter
             charge={player.hitCount}
             ready={player.specialReady}
@@ -1231,7 +1770,11 @@ export default function GameCanvas({
         </div>
         <div className="text-right">
           <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">Opp. Charge</p>
-          <p>{opponent.specialReady ? "Long-range attack ready" : "Charging beam..."}</p>
+          <p>
+            {opponent.specialReady
+              ? `Beam ready. `
+              : `${opponent.hitCount}/${SPECIAL_HIT_TARGET} bullet hits`}
+          </p>
           <ChargeMeter
             align="right"
             charge={opponent.hitCount}
@@ -1317,7 +1860,7 @@ export default function GameCanvas({
       />
       {!isComputerMatch && <audio ref={remoteAudioRef} autoPlay playsInline />}
 
-      <div className="mt-2 grid w-full max-w-[800px] grid-cols-4 gap-2 sm:hidden">
+      <div className="mt-2 grid w-full max-w-[800px] grid-cols-5 gap-2 sm:hidden">
         <button className={controlButtonClass} {...bindMovementButton("left")}>
           Left
         </button>
@@ -1329,6 +1872,15 @@ export default function GameCanvas({
           }}
         >
           Attack
+        </button>
+        <button
+          className={`${controlButtonClass} border-rose-400 bg-rose-950 text-rose-100`}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            handleTouchThrow();
+          }}
+        >
+          Throw
         </button>
         <button
           className={`${controlButtonClass} ${!player.specialReady ? "opacity-50" : "border-fuchsia-400 bg-fuchsia-950 text-fuchsia-100"}`}
@@ -1360,11 +1912,11 @@ export default function GameCanvas({
                 </p>
               </div>
               <button
-                className="rounded-full border border-zinc-600 px-3 py-1.5 text-xs font-semibold text-zinc-100 transition hover:border-zinc-400 sm:px-4 sm:py-2 sm:text-sm"
+                className="rounded-full cursor-pointer whitespace-nowrap border border-zinc-600 px-3 py-1.5 text-xs font-semibold text-zinc-100 transition hover:border-zinc-400 sm:px-4 sm:py-2 sm:text-sm"
                 onClick={closeTutorial}
                 type="button"
               >
-                Ready
+                Ready to fight
               </button>
             </div>
  
