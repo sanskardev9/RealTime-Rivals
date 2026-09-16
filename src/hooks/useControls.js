@@ -28,6 +28,11 @@ export const useControls = (onInput) => {
         console.log("Special attack key down: Q");
         onInputRef.current("specialAttack");
       }
+
+      if ((e.key === "e" || e.key === "E") && !e.repeat) {
+        console.log("Throw key down: E");
+        onInputRef.current("throw");
+      }
     };
 
     const handleKeyUp = (e) => {

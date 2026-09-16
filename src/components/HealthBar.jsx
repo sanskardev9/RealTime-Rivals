@@ -1,4 +1,6 @@
-export default function HealthBar({ health, color, label }) {
+export default function HealthBar({ health, color, label, maxHealth = 100 }) {
+  const clampedPercent = Math.max(0, Math.min(100, (health / maxHealth) * 100));
+
   return (
     <div className="w-full">
       <div className="mb-1 flex items-center justify-between gap-3 text-sm text-zinc-300">
@@ -16,7 +18,7 @@ export default function HealthBar({ health, color, label }) {
       >
         <div
           style={{
-            width: `${health}%`,
+            width: `${clampedPercent}%`,
             height: 20,
             background: color,
             transition: "width 120ms linear",
